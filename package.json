@@ -1,0 +1,29 @@
+{
+  "name": "coinflip-ai",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check": "svelte-kit sync && svelte-check"
+  },
+  "devDependencies": {
+    "@sveltejs/adapter-cloudflare": "^8.0.0",
+    "@sveltejs/kit": "^3.0.1",
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
+    "@types/three": "^0.186.0",
+    "svelte": "^5.57.2",
+    "svelte-check": "^4.7.6",
+    "typescript": "^6.0.3",
+    "vite": "^8.3.4",
+    "wrangler": "^4.151.0"
+  },
+  "dependencies": {
+    "three": "^0.186.1"
+  },
+  "imports": {
+    "#lib/*": "./src/lib/*.ts"
+  }
+}
