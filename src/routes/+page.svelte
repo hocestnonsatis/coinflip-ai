@@ -102,7 +102,7 @@
 			last = { result: out.result, confidence: out.confidence, z: out.z, trit: out.trit, ms, tps: Math.round(1000 / ms) };
 			history = [out.result, ...history].slice(0, 40);
 			phase = 'done';
-			const pool = out.result === 'yazi' ? t.yesLines : out.result === 'tura' ? t.noLines : t.maybeLines;
+			const pool = out.result === 'yazi' ? [...t.yesLines, ...t.bothLines] : out.result === 'tura' ? [...t.noLines, ...t.bothLines] : t.maybeLines;
 			const q = asked.replace(/[?？]+$/, '');
 			oracle = q ? `“${q}?” — ${pool[Math.floor(Math.random() * pool.length)]}` : '';
 			if (out.result === 'dik') push(`★ ${t.reveal} (w = ${WEIGHT > 0 ? '+1' : WEIGHT}, log₂3 = ${num(BITS, 2)})`);
