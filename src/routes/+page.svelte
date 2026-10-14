@@ -23,6 +23,27 @@
 	let question = $state('');
 	let asked = $state('');
 	let oracle = $state('');
+	let oracleShown = $state('');
+	let streaming = $state(false);
+	let streamId = 0;
+	const tokenize = (text: string) => (text.match(/\S+\s*|\s+/g) ?? []).flatMap((w) => (w.length > 6 ? w.match(/.{1,4}/gsu) ?? [w] : [w]));
+	async function streamOracle(text: string) {
+		const id = ++streamId;
+		oracle = text;
+		if (!text || reduced) { oracleShown = text; streaming = false; return; }
+		oracleShown = ''; streaming = true;
+		await sleep(250 + Math.random() * 350); // "thinking"
+		for (const tok of tokenize(text)) {
+			if (id !== streamId) return;
+			oracleShown += tok;
+			await sleep(25 + Math.random() * 65 + (/[.,!?;:…]\s*$/.test(tok) ? 120 : 0));
+		}
+		if (id === streamId) streaming = false;
+	}
+	function fill(line: string, v: { conf: number; tps: number; ms: number; z: number }) {
+		const map: Record<string, string> = { conf: pct.format(v.conf), tps: v.tps.toLocaleString(lang), ms: num(v.ms, 0), w: num(0.4271, 4), z: num(v.z) };
+		return line.replace(/\{(conf|tps|ms|w|z)\}/g, (_, k) => map[k]);
+	}
 	const answer = (s: Side) => (s === 'yazi' ? t.yes : s === 'tura' ? t.no : t.maybe);
 
 	const count = (k: Side) => history.filter((h) => h === k).length;
@@ -88,6 +109,7 @@
 	async function flip(holdMs: number) {
 		if (busy) return;
 		asked = question.trim();
+		streamId++; oracle = ''; oracleShown = ''; streaming = false;
 		legendary = false;
 		const power = Math.min(holdMs, HOLD_CAP) / HOLD_CAP;
 		const t0 = performance.now();
@@ -104,7 +126,7 @@
 			phase = 'done';
 			const pool = out.result === 'yazi' ? [...t.yesLines, ...t.bothLines] : out.result === 'tura' ? [...t.noLines, ...t.bothLines] : t.maybeLines;
 			const q = asked.replace(/[?？]+$/, '');
-			oracle = q ? `“${q}?” — ${pool[Math.floor(Math.random() * pool.length)]}` : '';
+			streamOracle(q ? `“${q}?” — ${fill(pool[Math.floor(Math.random() * pool.length)], { conf: out.confidence, tps: last.tps, ms: holdMs, z: out.z })}` : '');
 			if (out.result === 'dik') push(`★ ${t.reveal} (w = ${WEIGHT > 0 ? '+1' : WEIGHT}, log₂3 = ${num(BITS, 2)})`);
 			push(t.output(label(out.result).toLocaleUpperCase(lang), pct.format(out.confidence)));
 		};
@@ -147,7 +169,7 @@
 			<h1 class="think charge" class:over={charge > 1}>{charge > 1 ? '⚡' : t.charging}</h1>
 		{:else if phase === 'done' && last}
 			<h1 class="pop" class:edge={last.result === 'dik'}>{label(last.result)}{#if asked}<span class="arrow">→ {answer(last.result)}</span>{/if}</h1>
-			{#if oracle}<p class="oracle">{oracle}</p>{/if}
+			{#if oracle}<p class="oracle" aria-live="polite" aria-busy={streaming}>{oracleShown}{#if streaming}<span class="cursor" aria-hidden="true">▍</span>{/if}</p>{/if}
 			<p>{t.confidence}: <b>{pct.format(last.confidence)}</b> <span class="conf"><span style:width="{last.confidence * 100}%"></span></span></p>
 		{:else if phase === 'thinking'}
 			<h1 class="think">{t.thinking}<span>.</span><span>.</span><span>.</span></h1>
@@ -227,6 +249,9 @@
 	button:active:not(:disabled) { transform: translateY(1px) scale(0.99); }
 	button:disabled { filter: grayscale(0.6) brightness(0.7); cursor: progress; }
 	.arrow { margin-left: 0.35em; font-size: 0.55em; -webkit-text-fill-color: #36e27e; color: #36e27e; filter: drop-shadow(0 0 14px #36e27e66); }
+	.cursor { display: inline-block; margin-left: 1px; font-style: normal; animation: blink 0.8s steps(1) infinite; }
+	@keyframes blink { 50% { opacity: 0; } }
+	@media (prefers-reduced-motion: reduce) { .cursor { animation: none; } }
 	.oracle { max-width: 640px; margin: 4px auto 8px; padding: 0 12px; font-style: italic; font-size: clamp(14px, 3.6vw, 18px); opacity: 0.9; animation: fadeup 0.7s 0.2s both; }
 	.sota { background: #36e27e22 !important; border-color: #36e27e66 !important; color: #8ff5b7; }
 	.ask { margin-bottom: 10px; }
