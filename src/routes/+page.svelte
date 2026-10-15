@@ -26,6 +26,8 @@
 	let oracleShown = $state('');
 	let streaming = $state(false);
 	let streamId = 0;
+	let copyFeedback = $state<'idle' | 'ok' | 'fail'>('idle');
+	let copyTimer = 0;
 	const tokenize = (text: string) => (text.match(/\S+\s*|\s+/g) ?? []).flatMap((w) => (w.length > 6 ? w.match(/.{1,4}/gsu) ?? [w] : [w]));
 	async function streamOracle(text: string) {
 		const id = ++streamId;
@@ -45,6 +47,33 @@
 		return line.replace(/\{(conf|tps|ms|w|z)\}/g, (_, k) => map[k]);
 	}
 	const answer = (s: Side) => (s === 'yazi' ? t.yes : s === 'tura' ? t.no : t.maybe);
+	function formatTps(n: number) {
+		if (n >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
+		if (n >= 1e3) return (n / 1e3).toFixed(1).replace(/\.0$/, '') + 'k';
+		return n.toLocaleString(lang);
+	}
+	function verdictText() {
+		if (!last) return '';
+		const conf = pct.format(last.confidence);
+		const tps = formatTps(last.tps);
+		const side = label(last.result);
+		if (asked) {
+			const q = asked.replace(/[?？]+$/, '');
+			return `CoinFlip-1P · “${q}?” → ${answer(last.result).toLocaleUpperCase(lang)} (${side}) · conf ${conf} · ${tps} tok/s`;
+		}
+		return `CoinFlip-1P · ${side.toLocaleUpperCase(lang)} · conf ${conf} · ${tps} tok/s`;
+	}
+	async function copyVerdict() {
+		if (!last) return;
+		clearTimeout(copyTimer);
+		try {
+			await navigator.clipboard.writeText(verdictText());
+			copyFeedback = 'ok';
+		} catch {
+			copyFeedback = 'fail';
+		}
+		copyTimer = window.setTimeout(() => (copyFeedback = 'idle'), 1500);
+	}
 
 	const count = (k: Side) => history.filter((h) => h === k).length;
 	const busy = $derived(phase === 'thinking' || phase === 'flipping' || phase === 'loading');
@@ -110,6 +139,7 @@
 		if (busy) return;
 		asked = question.trim();
 		streamId++; oracle = ''; oracleShown = ''; streaming = false;
+		clearTimeout(copyTimer); copyFeedback = 'idle';
 		legendary = false;
 		const power = Math.min(holdMs, HOLD_CAP) / HOLD_CAP;
 		const t0 = performance.now();
@@ -171,6 +201,9 @@
 			<h1 class="pop" class:edge={last.result === 'dik'}>{label(last.result)}{#if asked}<span class="arrow">→ {answer(last.result)}</span>{/if}</h1>
 			{#if oracle}<p class="oracle" aria-live="polite" aria-busy={streaming}>{oracleShown}{#if streaming}<span class="cursor" aria-hidden="true">▍</span>{/if}</p>{/if}
 			<p>{t.confidence}: <b>{pct.format(last.confidence)}</b> <span class="conf"><span style:width="{last.confidence * 100}%"></span></span></p>
+			<button type="button" class="copy" onclick={copyVerdict} aria-live="polite">
+				{#if copyFeedback === 'ok'}{t.copied}{:else if copyFeedback === 'fail'}{t.copyFail}{:else}{t.copy}{/if}
+			</button>
 		{:else if phase === 'thinking'}
 			<h1 class="think">{t.thinking}<span>.</span><span>.</span><span>.</span></h1>
 		{:else if phase === 'flipping'}
@@ -244,10 +277,13 @@
 	.stats b { font-size: 14px; }
 	.log { font-size: 11px; opacity: 0.7; margin: 10px 0; min-height: 3.6em; line-height: 1.2em; }
 	.log div:last-child { color: #ffd36b; }
-	button { width: 100%; padding: 16px; font-size: 18px; font-weight: 800; border: 0; border-radius: 14px; cursor: pointer; color: #1a1205; background: linear-gradient(180deg, #ffe08a, #e9a23b); box-shadow: 0 8px 30px #ffae3a55, inset 0 1px 0 #fff8; transition: transform 0.15s, filter 0.2s; }
-	button:hover:not(:disabled) { transform: translateY(-2px); filter: brightness(1.08); }
-	button:active:not(:disabled) { transform: translateY(1px) scale(0.99); }
-	button:disabled { filter: grayscale(0.6) brightness(0.7); cursor: progress; }
+	button.hold { width: 100%; padding: 16px; font-size: 18px; font-weight: 800; border: 0; border-radius: 14px; cursor: pointer; color: #1a1205; background: linear-gradient(180deg, #ffe08a, #e9a23b); box-shadow: 0 8px 30px #ffae3a55, inset 0 1px 0 #fff8; transition: transform 0.15s, filter 0.2s; }
+	button.hold:hover:not(:disabled) { transform: translateY(-2px); filter: brightness(1.08); }
+	button.hold:active:not(:disabled) { transform: translateY(1px) scale(0.99); }
+	button.hold:disabled { filter: grayscale(0.6) brightness(0.7); cursor: progress; }
+	.copy { margin-top: 10px; padding: 6px 14px; font: inherit; font-size: 12px; font-weight: 600; letter-spacing: 0.02em; color: #eae6da; background: #ffffff12; border: 1px solid #ffffff2a; border-radius: 99px; cursor: pointer; backdrop-filter: blur(8px); transition: background 0.2s, border-color 0.2s, color 0.2s; }
+	.copy:hover { background: #ffffff1e; border-color: #ffc95a66; color: #ffe08a; }
+	.copy:active { transform: scale(0.97); }
 	.arrow { margin-left: 0.35em; font-size: 0.55em; -webkit-text-fill-color: #36e27e; color: #36e27e; filter: drop-shadow(0 0 14px #36e27e66); }
 	.cursor { display: inline-block; margin-left: 1px; font-style: normal; animation: blink 0.8s steps(1) infinite; }
 	@keyframes blink { 50% { opacity: 0; } }

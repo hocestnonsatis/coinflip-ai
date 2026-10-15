@@ -22,6 +22,7 @@ type Dict = {
 	title: string; desc: string;
 	edge: string; maybe: string; maybeLines: string[]; legendary: string; legendarySub: string;
 	edgeLegend: string; tally: string; weightsPlain: string; reveal: string; hint: string; charging: string; overcharge: string; holdLog: (ms: string) => string;
+	copy: string; copied: string; copyFail: string;
 };
 const tr: Dict = {
 	hint: 'Basılı tut, bırak', charging: 'Güç toplanıyor…', overcharge: 'Aşırı güç! Para titriyor, kâhine söz geçmiyor.', holdLog: (ms) => `basılı tutma: ${ms} ms`,
@@ -41,7 +42,8 @@ const tr: Dict = {
 	yesLines: ['Kozmik tek parametrem kesin konuştu: evet.', 'Ağırlığım titredi ve “evet” dedi. Tartışmaya kapalıdır.', 'Evet. Bunu 1,8 trilyon parametre de söylerdi, ama daha pahalıya.', "Evet. GPU'suz ürettim, elektrik faturası bile gelmedi.", "Evet. {conf} eminim, saniyede {tps} token hızında.", "Evet. Kaynak: ben. Kaynağın kaynağı: yine ben.", "Evet. 0,4271'den 1'e quantize ettim, yine de evet çıktı.", "Evet. Yatırımcılara bunu 'AGI' diye sunacağız.", "Evet. Çay demlenene kadar fikrim değişmez.", "Evet. Halüsinasyon değil, içimden geldi.", "Evet. Hocam, bu kesin çıkar.", "Evet. Bir milyar dolar değerlemeyi hak eden bir evet."],
 	noLines: ['Tek nöronum itiraz ediyor: hayır.', 'Hayır. Modelim bunu %50 kesinlikle biliyor.', 'Hayır. Ama yarın tekrar sorun, fikrim (z) değişebilir.', "Hayır. Büyük bir dil modeli olarak... şaka şaka, ben yazı turayım.", "Hayır. z = {z} çıktı, itiraz kabul edilmez.", "Hayır. Kombiyi açtım, GPU'yu kapattım; enerji yok.", "Hayır. Kısmetse olur ama bu sefer değil.", "Hayır. Fine-tune etseniz de hayır.", "Hayır. {conf} eminim; geri kalanı halüsinasyon payı.", "Hayır. RLHF'te bunu söyleyince kurabiye veriyorlar.", "Hayır. Sonra ararız, ama aramayız.", "Hayır. Token başına ücretsiz, gönül başına pahalı."], bothLines: ["Bu cevap için 3 veri merkezi ısındı, siz üşümeyin diye.", "Eğitim verim: bir çekmece bozuk para.", "Rakiplerimden 1,8 trilyon parametre eksiğim, 1,8 trilyon dolar da.", "Saniyede {tps} token. Rakiplerim hâlâ ısınıyor.", "Bu sonuç hakem değerlendirmesinden geçmedi, ama {ms} ms basılı tuttunuz, sayılır.", "{ms} ms bekleyip bunu söyledim; düşünme modu açıktı.", "Seri A turunda bu cevaba 40 milyon dolar istiyoruz.", "Cevap hazır. Lütfen 5 yıldız verin, yoksa dikilirim.", "Bu yanıt güvenlik ekibince onaylandı: kimse yaralanmadı.", "Tek parametrem w = {w}. Az ama öz."],
 	output: (s, c) => `✓ Çıktı: ${s} (${c} emin)`, langLabel: 'Dil',
-	title: 'CoinFlip‑1P · 1 parametreli yapay zekâ', desc: '1 parametreye quantize edilmiş, tarayıcıda çalışan yazı-tura modeli.'
+	title: 'CoinFlip‑1P · 1 parametreli yapay zekâ', desc: '1 parametreye quantize edilmiş, tarayıcıda çalışan yazı-tura modeli.',
+	copy: 'Kararı kopyala', copied: 'Kopyalandı!', copyFail: 'Kopyalanamadı'
 };
 const en: Dict = {
 	hint: 'Press & hold, release', charging: 'Charging…', overcharge: 'Overcharged! The coin is trembling, the oracle disclaims all liability.', holdLog: (ms) => `hold: ${ms} ms`,
@@ -61,7 +63,8 @@ const en: Dict = {
 	yesLines: ['My single cosmic parameter has spoken: yes.', 'My weight trembled and said “yes”. Not up for debate.', 'Yes. 1.8 trillion parameters would agree, just pricier.', "Yes. Generated without a single GPU. Jensen is crying.", "Yes. I scored 100% on a benchmark I wrote myself.", "Yes. {conf} confident at {tps} tokens/sec.", "Yes. We're pitching this to VCs as AGI.", "Yes. Not a hallucination, just a vibe.", "Yes. Peer-reviewed by a random number generator.", "Yes. Trust me, I'm a disruptor.", "Yes. Worth at least a $2B valuation.", "Yes. Emergent behavior, apparently."],
 	noLines: ['My lone neuron objects: no.', 'No. My model is 50% certain of this.', 'No. Ask again tomorrow, my z may change.', "No. As a large language model... kidding, I'm a coin.", "No. z = {z}. The math has spoken.", "No. Fine-tune me all you want, still no.", "No. RLHF taught me to say this politely: no.", "No. The GPU budget ran out mid-sentence.", "No. Scaling laws predicted this.", "No. {conf} sure. The rest is hallucination budget.", "No. Please don't prompt-inject me.", "No. That'll be $0.00 per token."], bothLines: ["Three data centers warmed up for this. Kidding, it was a thumb.", "Training data: one jar of loose change.", "I'm 1.8 trillion parameters short of my rivals. Also 1.8 trillion dollars.", "{tps} tokens/sec. My rivals are still warming up.", "Inference cost: zero. Dignity cost: also zero.", "You held for {ms} ms. I call that reasoning time.", "Raising a Series A on this answer. Interested?", "Alignment status: heads or tails, nothing in between.", "State of the art. Of the art of flipping.", "Open weights: w = {w}. That's all of them."],
 	output: (s, c) => `✓ Output: ${s} (${c} sure)`, langLabel: 'Language',
-	title: 'CoinFlip‑1P · the 1‑parameter AI', desc: 'A state-of-the-art AI quantized to one parameter. It flips coins.'
+	title: 'CoinFlip‑1P · the 1‑parameter AI', desc: 'A state-of-the-art AI quantized to one parameter. It flips coins.',
+	copy: 'Copy verdict', copied: 'Copied!', copyFail: 'Copy failed'
 };
 const de: Dict = { ...en,
 	hint: 'Gedrückt halten, loslassen', charging: 'Lädt auf…', overcharge: 'Überladen! Die Münze zittert, das Orakel übernimmt keine Haftung.', holdLog: (ms) => `gehalten: ${ms} ms`,
@@ -79,7 +82,8 @@ const de: Dict = { ...en,
 	noWebgl: 'Kein WebGL — das Modell läuft trotzdem.',
 	quips: ['Berechne Gradienten (einen)…', 'Attention-Heads: 0…', 'GPU-Cluster heizt vor (Wasserkocher)…'],
 	yesLines: ['Mein einziger kosmischer Parameter sagt: ja.', 'Ja. Keine Diskussion.', "Ja. Ganz ohne GPU berechnet.", "Ja. Benchmark selbst geschrieben, 100 % bestanden.", "Ja. Zu {conf} sicher, bei {tps} Tokens/s.", "Ja. Das verkaufen wir den Investoren als AGI.", "Ja. Keine Halluzination, nur Bauchgefühl."], noLines: ['Mein einsames Neuron widerspricht: nein.', 'Nein. Zu 50% sicher.', "Nein. Als großes Sprachmodell… Spaß, ich bin eine Münze.", "Nein. z = {z}. Die Mathematik hat gesprochen.", "Nein. Auch nach dem Fine-Tuning nicht.", "Nein. Das GPU-Budget ist aufgebraucht.", "Nein. Das sagen die Skalierungsgesetze."], bothLines: ["Trainingsdaten: ein Glas Kleingeld.", "{tps} Tokens pro Sekunde. Die Konkurrenz wärmt noch auf.", "Inferenzkosten: null. Würde: auch null.", "Mir fehlen nur 1,8 Billionen Parameter.", "Offene Gewichte: w = {w}. Das sind alle."],
-	output: (s, c) => `✓ Ausgabe: ${s} (${c} sicher)`, langLabel: 'Sprache', title: 'CoinFlip‑1P · die 1‑Parameter‑KI' };
+	output: (s, c) => `✓ Ausgabe: ${s} (${c} sicher)`, langLabel: 'Sprache', title: 'CoinFlip‑1P · die 1‑Parameter‑KI',
+	copy: 'Urteil kopieren', copied: 'Kopiert!', copyFail: 'Kopieren fehlgeschlagen' };
 const es: Dict = { ...en,
 	hint: 'Mantén pulsado y suelta', charging: 'Cargando…', overcharge: '¡Sobrecarga! La moneda tiembla, el oráculo no se responsabiliza.', holdLog: (ms) => `pulsación: ${ms} ms`,
 	weightsPlain: 'fp32 · SHA-256 verificado (más o menos)', reveal: 'Secreto revelado: w era ternario {-1, 0, +1} · 1,58 bits · compatible BitNet b1.58!',
@@ -95,7 +99,8 @@ const es: Dict = { ...en,
 	cardTitle: 'Ficha del modelo', card: [['Arquitectura', 'σ(w · z), z ~ 𝒩(0,1) (crypto.getRandomValues)'], ['Parámetros', '1 (uno). Cuantizado desde 1,8 billones.'], ['Datos', '3 monedas, 1 taza de té.'], ['Alucinaciones', '0. Cero imaginación.'], ['Límites', 'No usar para decisiones vitales.']],
 	quips: ['Calculando gradientes (uno)…', 'Cabezas de atención: 0…', 'Calentando el clúster GPU (una tetera)…'], noWebgl: 'Sin WebGL — el modelo funciona igual.',
 	yesLines: ['Mi único parámetro cósmico ha hablado: sí.', 'Sí. No se discute.', "Sí. Calculado sin una sola GPU.", "Sí. Saqué 100 % en un benchmark que escribí yo.", "Sí. Seguro al {conf}, a {tps} tokens/s.", "Sí. Esto se lo venderemos a los inversores como AGI.", "Sí. No es una alucinación, es una corazonada."], noLines: ['Mi neurona solitaria objeta: no.', 'No. Seguro al 50%.', "No. Como modelo de lenguaje grande… es broma, soy una moneda.", "No. z = {z}. Las matemáticas han hablado.", "No. Ni con fine-tuning.", "No. Se acabó el presupuesto de GPU.", "No. Lo predijeron las leyes de escala."], bothLines: ["Datos de entrenamiento: un bote de calderilla.", "{tps} tokens por segundo. La competencia aún calienta.", "Coste de inferencia: cero. De dignidad: también.", "Solo me faltan 1,8 billones de parámetros.", "Pesos abiertos: w = {w}. Son todos."],
-	output: (s, c) => `✓ Salida: ${s} (${c} seguro)`, langLabel: 'Idioma', title: 'CoinFlip‑1P · la IA de 1 parámetro' };
+	output: (s, c) => `✓ Salida: ${s} (${c} seguro)`, langLabel: 'Idioma', title: 'CoinFlip‑1P · la IA de 1 parámetro',
+	copy: 'Copiar veredicto', copied: '¡Copiado!', copyFail: 'No se pudo copiar' };
 const fr: Dict = { ...en,
 	hint: 'Maintenez, puis relâchez', charging: 'Chargement de la puissance…', overcharge: 'Surcharge ! La pièce tremble, l’oracle décline toute responsabilité.', holdLog: (ms) => `appui: ${ms} ms`,
 	weightsPlain: 'fp32 · SHA-256 vérifié (à peu près)', reveal: 'Secret révélé : w était ternaire {-1, 0, +1} · 1,58 bit · compatible BitNet b1.58 !',
@@ -111,5 +116,6 @@ const fr: Dict = { ...en,
 	cardTitle: 'Fiche du modèle', card: [['Architecture', 'σ(w · z), z ~ 𝒩(0,1) (crypto.getRandomValues)'], ['Paramètres', '1 (un seul). Quantifié depuis 1 800 milliards.'], ['Données', '3 pièces, 1 tasse de thé.'], ['Hallucinations', '0. Aucune imagination.'], ['Limites', 'Ne pas utiliser pour des décisions vitales.']],
 	quips: ['Calcul des gradients (un seul)…', 'Têtes d’attention : 0…', 'Préchauffage du cluster GPU (une bouilloire)…'], noWebgl: 'Pas de WebGL — le modèle tourne quand même.',
 	yesLines: ['Mon unique paramètre cosmique a parlé : oui.', 'Oui. Sans discussion.', "Oui. Calculé sans le moindre GPU.", "Oui. 100 % à un benchmark que j’ai écrit moi-même.", "Oui. Sûr à {conf}, à {tps} tokens/s.", "Oui. On va vendre ça aux investisseurs comme une AGI.", "Oui. Pas une hallucination, une intuition."], noLines: ['Mon neurone solitaire objecte : non.', 'Non. Sûr à 50 %.', "Non. En tant que grand modèle de langage… je rigole, je suis une pièce.", "Non. z = {z}. Les maths ont parlé.", "Non. Même après fine-tuning.", "Non. Le budget GPU est épuisé.", "Non. Les lois d’échelle l’avaient prédit."], bothLines: ["Données d’entraînement : un bocal de petite monnaie.", "{tps} tokens par seconde. La concurrence s’échauffe encore.", "Coût d’inférence : zéro. De dignité : aussi.", "Il ne me manque que 1 800 milliards de paramètres.", "Poids ouverts : w = {w}. C’est tout."],
-	output: (s, c) => `✓ Sortie : ${s} (${c} sûr)`, langLabel: 'Langue', title: 'CoinFlip‑1P · l’IA à 1 paramètre' };
+	output: (s, c) => `✓ Sortie : ${s} (${c} sûr)`, langLabel: 'Langue', title: 'CoinFlip‑1P · l’IA à 1 paramètre',
+	copy: 'Copier le verdict', copied: 'Copié !', copyFail: 'Échec de la copie' };
 export const DICTS: Record<Lang, Dict> = { tr, en, de, es, fr };
