@@ -31,12 +31,19 @@ export const COIN_DIAMETER_MM = 21.21, COIN_THICKNESS_MM = 1.95;
 export const P_EDGE = 1 / 6000;
 
 export type Side = 'yazi' | 'tura' | 'dik';
-/** Hold duration (ms, sub-ms jitter) → uniform u → z. Deterministic in the hold; jitter makes it fair. */
-export const HOLD_K = 7919.0001; // prime-ish "learned" scaling constant
-export function holdToU(holdMs: number): number {
-	const x = holdMs * HOLD_K;
-	const u = x - Math.floor(x);
-	return Math.min(1 - 1e-12, Math.max(1e-12, u));
+/** Hold duration (float64 bits) ⊕ crypto jitter → murmur3 fmix32 chain → uniform u ∈ (0,1) → z.
+ *  The hold is the main input; the 32-bit crypto word guarantees fairness even with integer-ms timers. */
+const f64 = new Float64Array(1), w32 = new Uint32Array(f64.buffer), rnd = new Uint32Array(1);
+const fmix32 = (h: number) => {
+	h ^= h >>> 16; h = Math.imul(h, 0x85ebca6b);
+	h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35);
+	return (h ^ (h >>> 16)) >>> 0;
+};
+export function holdToU(holdMs: number, jitter?: number): number {
+	f64[0] = holdMs;
+	if (jitter === undefined) { crypto.getRandomValues(rnd); jitter = rnd[0]; }
+	const h = fmix32(fmix32(w32[0] ^ jitter) ^ w32[1]); // bijective in jitter ⇒ exactly uniform for any hold
+	return (h + 0.5) / 4294967296;
 }
 export function infer(holdMs: number) {
 	const pEdge = P_EDGE;
