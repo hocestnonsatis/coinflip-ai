@@ -9,6 +9,7 @@
 	import { STATS } from '#lib/tavla-stats';
 	import { rollDie, rollPair, openingRoll } from '#lib/tavla-dice';
 	import type { Backend } from '#lib/engine';
+	import type { TavlaScene } from '#lib/tavla-scene';
 	import Seo from './Seo.svelte';
 
 	type Phase = 'opening' | 'roll' | 'move' | 'ai' | 'over';
@@ -36,6 +37,9 @@
 	let result = $state<{ human: boolean; gammon: boolean } | null>(null);
 	let reduced = $state(false);
 	let autoRoll = $state(false);
+	let canvas3d = $state<HTMLCanvasElement>();
+	let s3: TavlaScene | null = null;
+	let mode3d = $state(false), webglFailed = $state(false), animating = $state(false);
 	function setAuto(v: boolean) { autoRoll = v; try { localStorage.setItem('tavla-autoroll', v ? '1' : '0'); } catch { /* private mode */ } }
 	$effect(() => {
 		if (phase !== 'roll' || !autoRoll || rolling) return;
@@ -73,8 +77,9 @@
 	const shownDice = $derived(dice.length === 2 && dice[0] === dice[1] ? [dice[0], dice[0], dice[0], dice[0]] : dice);
 	const pc = $derived(pips(hb));
 
-	async function rollAnim(n: number, final: number[]) {
+	async function rollAnim(n: number, final: number[], humanSide = true) {
 		rolling = true;
+		if (s3) { await s3.rollDice(final, humanSide); dice = final; rolling = false; return; }
 		const end = performance.now() + (reduced ? 0 : 650);
 		while (performance.now() < end) { dice = Array.from({ length: n }, rollDie); await sleep(70); }
 		dice = final; rolling = false;
@@ -111,13 +116,15 @@
 		beginHuman(d);
 	}
 	function clickPoint(i: number) {
-		if (phase !== 'move') return;
+		if (phase !== 'move' || animating) return;
 		const r = resolveClick(nextSteps, sel, i);
 		if ('step' in r) { step(r.step); return; }
 		sel = r.sel; status = sel === null ? t.pickChecker : t.pickTarget;
 	}
-	function step(s: Step) {
-		history = [...history, hb]; hb = applyStep(hb, s); done = [...done, s];
+	async function step(s: Step) {
+		const after = applyStep(hb, s);
+		if (s3) { animating = true; try { await s3.move(hb, after, s[0], s[1] === -1 ? 26 : s[1], true); } finally { animating = false; } }
+		history = [...history, hb]; hb = after; done = [...done, s];
 		const rest = seqs.filter((q) => done.every((d, i) => q.steps[i][0] === d[0] && q.steps[i][1] === d[1]));
 		if (done.length >= rest[0].steps.length) { sel = null; commitHuman(); return; }
 		const nxt = rest.map((q) => q.steps[done.length]);
@@ -139,7 +146,7 @@
 	}
 	async function aiTurn(d: number[] | null, id: number) {
 		phase = 'ai'; status = t.thinking; sel = null;
-		if (!d) { d = rollPair(); await rollAnim(2, d); if (id !== gameId) return; } else dice = d;
+		if (!d) { d = rollPair(); await rollAnim(2, d, false); if (id !== gameId) return; } else dice = d;
 		const mb = flip(hb);
 		const mod = ai ?? (ai = await import('#lib/tavla-ai'));
 		const c = await mod.choose(mb, d[0], d[1]);
@@ -148,7 +155,12 @@
 		const barBefore = hb[24];
 		let cur = mb; lastAi = [];
 		if (!c.play.steps.length) { status = t.modelNoMove; say(pick(t.aiNoMove)); await sleep(1200); }
-		for (const s of c.play.steps) { await sleep(420); if (id !== gameId) return; cur = applyStep(cur, s); hb = flip(cur); lastAi = [...lastAi, s]; }
+		for (const s of c.play.steps) {
+			await sleep(s3 ? 120 : 420); if (id !== gameId) return;
+			const next = applyStep(cur, s), after = flip(next);
+			if (s3) { animating = true; try { await s3.move(hb, after, s[0] === 24 ? 25 : 23 - s[0], s[1] === -1 ? 27 : 23 - s[1], false); } finally { animating = false; } if (id !== gameId) return; }
+			cur = next; hb = after; lastAi = [...lastAi, s];
+		}
 		winP = 1 - c.p;
 		if (cur[26] === 15) { finish(false); return; }
 		const hit = hb[24] > barBefore;
@@ -186,6 +198,8 @@
 		vsRandom: fmtPct(STATS.vsRandom.w, STATS.vsRandom.n), vsHeur: fmtPct(STATS.vsHeur.w, STATS.vsHeur.n), size: `${(STATS.onnxBytes / 1024).toLocaleString(lang, { maximumFractionDigits: 1 })} KB ONNX`
 	}));
 
+	$effect(() => { const b = hb; if (mode3d && !animating) s3?.sync(b); });
+	$effect(() => { const h = { sources: new Set(sources), targets: new Set(targets), sel, lastTo: new Set(lastTo) }; if (mode3d) s3?.setHighlights(h); });
 	onMount(() => {
 		const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
 		reduced = mq.matches;
@@ -194,6 +208,14 @@
 		if (data.lang) lang = data.lang;
 		else if (q && LANGS.some((l) => l.code === q)) { lang = q; localStorage.setItem('lang', q); window.history.replaceState(window.history.state, '', pathFor(q, 'tavla')); }
 		(async () => {
+			try {
+				if (!canvas3d) throw new Error('no canvas');
+				const mod = await import('#lib/tavla-scene');
+				s3 = mod.createTavlaScene(canvas3d, { onPick: (l) => clickPoint(l), reducedMotion: () => reduced });
+				(window as unknown as { __tavla3d?: TavlaScene }).__tavla3d = s3; // used by the headless prod test
+				(window as unknown as { __tavlaUi?: () => object }).__tavlaUi = () => ({ phase, animating, sources: [...sources], targets: [...targets], sel });
+				mode3d = true; s3.sync(hb);
+			} catch (e) { console.info('[tavla] WebGL unavailable, using the SVG board', e); s3 = null; webglFailed = true; }
 			ai = await import('#lib/tavla-ai');
 			// Scripted positions for testing: ?pos=<28 comma-separated ints, human view>&dice=a,b
 			const sp = new URLSearchParams(location.search), pos = sp.get('pos')?.split(',').map(Number), dd = sp.get('dice')?.split(',').map(Number);
@@ -201,7 +223,7 @@
 			else newGame();
 			try { engine = await ai.loadTavlaEngine(); } catch { engine = 'ts'; }
 		})();
-		return () => { gameId++; streamId++; };
+		return () => { gameId++; streamId++; s3?.destroy(); s3 = null; };
 	});
 	$effect(() => { document.documentElement.lang = lang; });
 	function setLang(l: Lang) { lang = l; setLangPref(l); try { replaceState(pathFor(l, 'tavla'), {}); } catch { /* router not ready */ } }
@@ -230,7 +252,8 @@
 					<div class="pbar"><div class="pyou" style:width="{winP * 100}%"></div></div>
 					<span class="pr">{pct.format(1 - winP)} {t.model}</span>
 				</div>
-				<svg viewBox="0 0 760 560" class="board" role="img" aria-label="Backgammon board">
+				{#if !webglFailed}<canvas bind:this={canvas3d} class="board3d" aria-label="Backgammon board (3D)"></canvas>{/if}
+				{#if webglFailed}<svg viewBox="0 0 760 560" class="board" role="img" aria-label="Backgammon board">
 					<defs>
 						<linearGradient id="felt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2f5a3c" /><stop offset="1" stop-color="#1f3f2a" /></linearGradient>
 						<radialGradient id="cw" cx="0.4" cy="0.35"><stop offset="0" stop-color="#fffaf0" /><stop offset="1" stop-color="#d9c7a0" /></radialGradient>
@@ -272,7 +295,7 @@
 					<rect x={FR + 6 * W} y="280" width={BAR} height="260" fill="transparent" role="button" tabindex="-1" aria-label="bar" onclick={() => clickPoint(24)} onkeydown={() => {}} class="hit" class:clickable={sources.has(24)} />
 					<rect x="680" y={TOP} width="60" height={BOT - TOP} fill="transparent" role="button" tabindex="-1" aria-label="off" onclick={() => clickPoint(-1)} onkeydown={() => {}} class="hit" class:clickable={offTarget} />
 					{#if offTarget}<text x="710" y="290" class="offlbl">⇥</text>{/if}
-				</svg>
+				</svg>{/if}
 			</div>
 
 			<aside class="panel">
@@ -326,6 +349,8 @@
 	.mono { font-family: ui-monospace, 'SF Mono', Menlo, monospace; }
 	.layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }
 	.board { width: 100%; height: auto; display: block; border-radius: 14px; box-shadow: 0 30px 80px #000a, 0 0 0 1px #ffffff10; user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+	.board3d { width: 100%; aspect-ratio: 16 / 12; display: block; border-radius: 14px; box-shadow: 0 30px 80px #000a, 0 0 0 1px #ffffff10; touch-action: manipulation; cursor: pointer; background: #050403; }
+	@media (max-aspect-ratio: 1/1) { .board3d { aspect-ratio: 1 / 1.28; } }
 	.prob { display: flex; align-items: center; gap: 8px; font-size: 12px; margin-bottom: 8px; font-weight: 700; }
 	.pbar { flex: 1; height: 10px; border-radius: 99px; background: #3a120d; overflow: hidden; box-shadow: inset 0 0 0 1px #ffffff22; }
 	.pyou { height: 100%; background: linear-gradient(90deg, #fff3c4, #e0b46a); transition: width 0.6s; }

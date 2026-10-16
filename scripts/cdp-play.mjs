@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 const [url, out, w = '1300', h = '900', mobile = '0', moves = '6'] = process.argv.slice(2);
 const port = 9333 + Math.floor(Math.random() * 500);
-const chrome = spawn('google-chrome', ['--headless=new', '--no-sandbox', `--remote-debugging-port=${port}`, '--user-data-dir=/tmp/cdp-' + port, 'about:blank'], { stdio: 'ignore' });
+const chrome = spawn('google-chrome', ['--headless=new', '--no-sandbox', `--remote-debugging-port=${port}`, '--user-data-dir=/tmp/cdp-' + port, '--enable-unsafe-swiftshader', '--use-angle=swiftshader', 'about:blank'], { stdio: 'ignore' });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let tabs; for (let i = 0; i < 50; i++) { try { tabs = await (await fetch(`http://127.0.0.1:${port}/json`)).json(); break; } catch { await sleep(200); } }
 const ws = new WebSocket(tabs.find((t) => t.type === 'page').webSocketDebuggerUrl);

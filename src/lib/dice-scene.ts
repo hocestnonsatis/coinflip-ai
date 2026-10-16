@@ -10,15 +10,15 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { woodTextures, VignetteShader } from './scene';
 
 // BoxGeometry material order: +x, -x, +y, -y, +z, -z  → face values (opposites sum to 7)
-const FACE_OF_MAT = [2, 5, 1, 6, 3, 4];
-const NORMALS = [new THREE.Vector3(1, 0, 0), new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, -1, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, -1)];
+export const FACE_OF_MAT = [2, 5, 1, 6, 3, 4];
+export const NORMALS = [new THREE.Vector3(1, 0, 0), new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, -1, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, -1)];
 const PIPS: Record<number, [number, number][]> = {
 	1: [[0.5, 0.5]], 2: [[0.27, 0.27], [0.73, 0.73]], 3: [[0.25, 0.25], [0.5, 0.5], [0.75, 0.75]],
 	4: [[0.27, 0.27], [0.73, 0.27], [0.27, 0.73], [0.73, 0.73]], 5: [[0.25, 0.25], [0.75, 0.25], [0.5, 0.5], [0.25, 0.75], [0.75, 0.75]],
 	6: [[0.27, 0.23], [0.73, 0.23], [0.27, 0.5], [0.73, 0.5], [0.27, 0.77], [0.73, 0.77]]
 };
 
-function faceTex(n: number, kind: 'color' | 'bump'): THREE.CanvasTexture {
+export function faceTex(n: number, kind: 'color' | 'bump'): THREE.CanvasTexture {
 	const s = 512, c = document.createElement('canvas'); c.width = c.height = s;
 	const g = c.getContext('2d')!;
 	if (kind === 'color') {

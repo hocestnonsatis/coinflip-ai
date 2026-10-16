@@ -81,3 +81,14 @@ console.log(`tavla ok: ${fx.cases.length} positions, ${n} legal plays identical 
 	assert.deepEqual(resolveClick(ns, 24, 24), { sel: 24 });
 	console.log('tavla bar-entry ok: own point, empty, hit, blocked, doubles, two on bar, click UI');
 }
+// 3D layout: every position places exactly 15 + 15 checkers, no two overlapping, human/model colors match the board.
+{
+	const { layout } = await import('../src/lib/tavla-layout.ts');
+	for (const c of fx.cases.slice(0, 400)) for (const b of [c.b, flip(c.b)]) {
+		const L = layout(b); let h = 0, m = 0; const all: { x: number; y: number; z: number }[] = [];
+		for (const [loc, { human, pos }] of L) { if (human) h += pos.length; else m += pos.length; if (loc < 24) assert.equal(human, b[loc] > 0); all.push(...pos); }
+		assert.equal(h, 15); assert.equal(m, 15);
+		for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) assert.ok(Math.hypot(all[i].x - all[j].x, all[i].y - all[j].y, all[i].z - all[j].z) > 0.15);
+	}
+	console.log('tavla 3D layout ok: 30 checkers, no overlaps, 800 positions');
+}
