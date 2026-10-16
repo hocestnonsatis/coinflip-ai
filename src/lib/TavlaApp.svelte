@@ -39,6 +39,13 @@
 	let autoRoll = $state(false);
 	let canvas3d = $state<HTMLCanvasElement>();
 	let s3: TavlaScene | null = null;
+	let headerEl = $state<HTMLElement>(), probEl = $state<HTMLElement>(), panelEl = $state<HTMLElement>();
+	function updateInsets() {
+		if (!s3 || !panelEl || !probEl) return;
+		const W = window.innerWidth, H = window.innerHeight, pr = panelEl.getBoundingClientRect(), top = probEl.getBoundingClientRect().bottom + 8;
+		const sheet = pr.width > W * 0.8; // portrait bottom sheet
+		s3.setInsets(sheet ? { top, right: 0, bottom: H - pr.top + 4, left: 0 } : { top, right: W - pr.left + 8, bottom: 8, left: 8 });
+	}
 	let mode3d = $state(false), webglFailed = $state(false), animating = $state(false);
 	function setAuto(v: boolean) { autoRoll = v; try { localStorage.setItem('tavla-autoroll', v ? '1' : '0'); } catch { /* private mode */ } }
 	$effect(() => {
@@ -215,6 +222,8 @@
 				(window as unknown as { __tavla3d?: TavlaScene }).__tavla3d = s3; // used by the headless prod test
 				(window as unknown as { __tavlaUi?: () => object }).__tavlaUi = () => ({ phase, animating, sources: [...sources], targets: [...targets], sel });
 				mode3d = true; s3.sync(hb);
+				const ro = new ResizeObserver(updateInsets); for (const el of [panelEl, probEl, headerEl]) if (el) ro.observe(el);
+				window.addEventListener('resize', updateInsets); updateInsets();
 			} catch (e) { console.info('[tavla] WebGL unavailable, using the SVG board', e); s3 = null; webglFailed = true; }
 			ai = await import('#lib/tavla-ai');
 			// Scripted positions for testing: ?pos=<28 comma-separated ints, human view>&dice=a,b
@@ -232,10 +241,11 @@
 <Seo {lang} slug="tavla" title={t.title} desc={t.desc} image="/og-tavla.png" {jsonLd} />
 <svelte:window onkeydown={(e) => { if ((e.code === 'Space' || e.code === 'Enter') && phase === 'roll' && (e.target as HTMLElement).tagName !== 'SELECT' && (e.target as HTMLElement).tagName !== 'BUTTON') { e.preventDefault(); humanRoll(); } if ((e.ctrlKey || e.metaKey) && e.key === 'z') undo(); if ((e.key === 'r' || e.key === 'R') && !e.ctrlKey && !e.metaKey && (e.target as HTMLElement).tagName !== 'SELECT' && phase === 'roll') humanRoll(); }} />
 
-<div class="tv">
+<div class="tv" class:full={!webglFailed}>
 	<div class="table" aria-hidden="true"></div>
+	{#if !webglFailed}<canvas bind:this={canvas3d} class="stage3d" aria-label="Backgammon board (3D)"></canvas>{/if}
 	<main>
-		<header>
+		<header bind:this={headerEl}>
 			<a class="back" href={pathFor(lang, '')} aria-label={HUB[lang].back}>←</a>
 			<h1 class="brand"><span class="dot" class:live={engine !== 'loading'}></span> Tavla‑1.6K <small>TD(λ) · 198‑8‑1</small><span class="sr-only"> · {t.title.split('·').slice(1).join('·').trim()}</span></h1>
 			<select class="lang" aria-label="Language" value={lang} onchange={(e) => setLang(e.currentTarget.value as Lang)}>
@@ -247,12 +257,11 @@
 
 		<div class="layout">
 			<div class="boardwrap">
-				<div class="prob" role="meter" aria-label={t.winProb} aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round(winP * 100)}>
+				<div class="prob" bind:this={probEl} role="meter" aria-label={t.winProb} aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round(winP * 100)}>
 					<span class="pl">{t.you} {pct.format(winP)}</span>
 					<div class="pbar"><div class="pyou" style:width="{winP * 100}%"></div></div>
 					<span class="pr">{pct.format(1 - winP)} {t.model}</span>
 				</div>
-				{#if !webglFailed}<canvas bind:this={canvas3d} class="board3d" aria-label="Backgammon board (3D)"></canvas>{/if}
 				{#if webglFailed}<svg viewBox="0 0 760 560" class="board" role="img" aria-label="Backgammon board">
 					<defs>
 						<linearGradient id="felt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2f5a3c" /><stop offset="1" stop-color="#1f3f2a" /></linearGradient>
@@ -298,7 +307,7 @@
 				</svg>{/if}
 			</div>
 
-			<aside class="panel">
+			<aside class="panel" bind:this={panelEl}>
 				<div class="turn"><b>{status || '…'}</b></div>
 				<div class="dicebox" aria-live="polite">
 					{#each shownDice as d, i (i)}
@@ -349,8 +358,23 @@
 	.mono { font-family: ui-monospace, 'SF Mono', Menlo, monospace; }
 	.layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }
 	.board { width: 100%; height: auto; display: block; border-radius: 14px; box-shadow: 0 30px 80px #000a, 0 0 0 1px #ffffff10; user-select: none; -webkit-user-select: none; touch-action: manipulation; }
-	.board3d { width: 100%; aspect-ratio: 16 / 12; display: block; border-radius: 14px; box-shadow: 0 30px 80px #000a, 0 0 0 1px #ffffff10; touch-action: manipulation; cursor: pointer; background: #050403; }
-	@media (max-aspect-ratio: 1/1) { .board3d { aspect-ratio: 1 / 1.28; } }
+	.stage3d { position: fixed; inset: 0; width: 100vw; height: 100dvh; display: block; touch-action: manipulation; cursor: pointer; background: #050403; }
+	.tv.full { overflow: hidden; }
+	.tv.full main { position: fixed; inset: 0; max-width: none; pointer-events: none; padding: max(10px, env(safe-area-inset-top)) 14px 0; }
+	.tv.full header, .tv.full .prob, .tv.full .panel { pointer-events: auto; }
+	.tv.full header { background: #0c0c16a0; backdrop-filter: blur(10px); border: 1px solid #ffffff14; border-radius: 99px; padding: 4px 6px; }
+	.tv.full .pitch { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+	.tv.full .layout { display: block; }
+	.tv.full .prob { position: fixed; top: calc(max(10px, env(safe-area-inset-top)) + 50px); left: 50%; transform: translateX(-50%); width: min(560px, 70vw); margin: 0; padding: 6px 12px; background: #0c0c16a0; backdrop-filter: blur(10px); border: 1px solid #ffffff14; border-radius: 99px; box-sizing: border-box; }
+	.tv.full .panel { position: fixed; right: 14px; top: calc(max(10px, env(safe-area-inset-top)) + 50px); width: 280px; max-height: calc(100dvh - 76px); overflow-y: auto; padding: 12px; box-sizing: border-box; }
+	@media (min-width: 1000px) and (min-aspect-ratio: 1/1) { .tv.full .prob { left: calc(50% - 150px); } }
+	@media (max-aspect-ratio: 1/1), (max-width: 760px) {
+		.tv.full .prob { top: calc(max(10px, env(safe-area-inset-top)) + 46px); width: calc(100vw - 20px); left: 10px; transform: none; }
+		.tv.full .panel { left: 0; right: 0; top: auto; bottom: 0; width: auto; height: 36dvh; max-height: none; border-radius: 18px 18px 0 0; padding: 10px 14px max(10px, env(safe-area-inset-bottom)); }
+		.tv.full .panel .hint, .tv.full .panel .engine { display: none; }
+		.tv.full .dicebox { min-height: 44px; margin: 6px 0; }
+		.tv.full .btns { min-height: 46px; }
+	}
 	.prob { display: flex; align-items: center; gap: 8px; font-size: 12px; margin-bottom: 8px; font-weight: 700; }
 	.pbar { flex: 1; height: 10px; border-radius: 99px; background: #3a120d; overflow: hidden; box-shadow: inset 0 0 0 1px #ffffff22; }
 	.pyou { height: 100%; background: linear-gradient(90deg, #fff3c4, #e0b46a); transition: width 0.6s; }

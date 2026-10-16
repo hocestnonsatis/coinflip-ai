@@ -173,24 +173,25 @@ export function createTavlaScene(canvas: HTMLCanvasElement, opts: { onPick: (loc
 
 	// camera fit: angled from the human side; portrait goes more top-down
 	const look = new THREE.Vector3(0.5, 0, 0.4);
+	// Insets (CSS px) covered by floating UI; the board is fitted into the remaining rectangle and centred there via setViewOffset.
+	let insets = { top: 0, right: 0, bottom: 0, left: 0 };
 	function fit() {
-		const a = camera.aspect, portrait = a < 0.9;
-		camera.fov = 34;
-		const vf = (camera.fov * Math.PI) / 180, hf = 2 * Math.atan(Math.tan(vf / 2) * a);
-		if (portrait) {
-			// phone: board turned 90° on screen (long side vertical) → each point gets ~25% more pixels than the flat SVG board
-			const tilt = 1.36, W = 17.4, D = 13.9;
-			const d = Math.max(D / 2 / Math.tan(hf / 2), (W * Math.sin(tilt)) / 2 / Math.tan(vf / 2)) * 1.03;
-			camera.up.set(-1, 0, 0);
-			camera.position.set(look.x - Math.cos(tilt) * d, Math.sin(tilt) * d, look.z * 0);
-			camera.lookAt(look.x, 0, 0);
-		} else {
-			const tilt = 0.98, W = 17.6, D = 14.2 * Math.sin(tilt) + 1.2 * Math.cos(tilt);
-			const d = Math.max(W / 2 / Math.tan(hf / 2), D / 2 / Math.tan(vf / 2)) * 1.08;
-			camera.up.set(0, 1, 0);
-			camera.position.set(look.x, look.y + Math.sin(tilt) * d, look.z + Math.cos(tilt) * d);
-			camera.lookAt(look);
-		}
+		const Wpx = canvas.clientWidth, Hpx = canvas.clientHeight; if (!Wpx || !Hpx) return;
+		const rw = Math.max(50, Wpx - insets.left - insets.right), rh = Math.max(50, Hpx - insets.top - insets.bottom);
+		const portrait = rw / rh < 0.9;
+		camera.fov = 30; camera.aspect = Wpx / Hpx;
+		const vf = (camera.fov * Math.PI) / 180, hf = 2 * Math.atan(Math.tan(vf / 2) * camera.aspect);
+		// board bounds (world units) as seen on screen: long side 17.6 incl. tray, short side 14.2
+		const tilt = portrait ? 1.36 : 1.0, LONG = 17.4, SHORT = 13.9;
+		const sw = portrait ? SHORT : LONG, sh = (portrait ? LONG : SHORT) * Math.sin(tilt) + 1.0 * Math.cos(tilt);
+		const d = Math.max((sw / 2 / Math.tan(hf / 2)) * (Wpx / rw), (sh / 2 / Math.tan(vf / 2)) * (Hpx / rh)) * 1.05;
+		if (portrait) { camera.up.set(-1, 0, 0); camera.position.set(look.x - Math.cos(tilt) * d, Math.sin(tilt) * d, 0); camera.lookAt(look.x, 0, 0); }
+		else { camera.up.set(0, 1, 0); camera.position.set(look.x, Math.sin(tilt) * d, look.z + Math.cos(tilt) * d); camera.lookAt(look.x, 0, look.z); }
+		// shift the image so the board's centre lands in the centre of the free rectangle
+		const ox = (insets.right - insets.left) / 2, oy = (insets.bottom - insets.top) / 2;
+		camera.setViewOffset(Wpx, Hpx, ox, oy, Wpx, Hpx);
+		// fog and clip planes follow the fitted distance (a tall phone pushes the camera far back)
+		const fog = scene.fog as THREE.Fog; fog.near = d + 4; fog.far = d + 30; camera.far = d + 80;
 		camera.updateProjectionMatrix();
 	}
 	const composer = new EffectComposer(renderer);
@@ -198,22 +199,33 @@ export function createTavlaScene(canvas: HTMLCanvasElement, opts: { onPick: (loc
 	composer.addPass(new UnrealBloomPass(new THREE.Vector2(1, 1), 0.12, 0.4, 0.92));
 	const vignette = new ShaderPass(VignetteShader); vignette.uniforms.strength.value = 1.0; composer.addPass(vignette);
 	composer.addPass(new OutputPass());
+	// Resolution: devicePixelRatio capped at 2, and at most ~8.3 MP (4K) when idle; while animating, cap at ~3.7 MP (dynamic resolution).
+	let curPr = 0, raf = 0, dirty = true;
+	function pixelRatio(animating: boolean) {
+		const w = canvas.clientWidth, h = canvas.clientHeight, dpr = Math.min(window.devicePixelRatio || 1, 2);
+		const cap = animating ? 3.7e6 : 8.3e6;
+		return Math.max(0.5, Math.min(dpr, Math.sqrt(cap / Math.max(1, w * h))));
+	}
+	function applyPr(pr: number) {
+		if (Math.abs(pr - curPr) < 0.01) return; curPr = pr;
+		const w = canvas.clientWidth, h = canvas.clientHeight;
+		renderer.setPixelRatio(pr); renderer.setSize(w, h, false); composer.setPixelRatio(pr); composer.setSize(w, h);
+		dirty = true; // resizing clears the drawing buffer
+	}
 	function resize() {
 		const w = canvas.clientWidth, h = canvas.clientHeight; if (!w || !h) return;
-		const dpr = Math.min(window.devicePixelRatio || 1, 2);
-		renderer.setPixelRatio(dpr); renderer.setSize(w, h, false); composer.setPixelRatio(dpr); composer.setSize(w, h);
-		camera.aspect = w / h; fit(); invalidate();
+		curPr = 0; applyPr(pixelRatio(tweens.length > 0)); fit(); invalidate();
 	}
 	const ro = new ResizeObserver(resize); ro.observe(canvas);
 
-	let raf = 0, dirty = true;
 	function invalidate() { dirty = true; kick(); }
 	function kick() { if (!raf) raf = requestAnimationFrame(frame); }
 	function frame(now: number) {
 		raf = 0;
 		for (let i = tweens.length - 1; i >= 0; i--) { const t = tweens[i], u = Math.min(1, (now - t.t0) / t.dur); t.step(u); if (u >= 1) { tweens.splice(i, 1); t.done(); } }
+		applyPr(pixelRatio(tweens.length > 0)); // drop resolution while moving, full resolution for the resting frame
 		if (dirty || tweens.length) { composer.render(); dirty = false; }
-		if (tweens.length) kick();
+		if (tweens.length) kick(); else if (Math.abs(curPr - pixelRatio(false)) > 0.01) { applyPr(pixelRatio(false)); composer.render(); dirty = false; }
 	}
 	// picking (tap = pointerdown/up without much movement)
 	const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
@@ -238,6 +250,13 @@ export function createTavlaScene(canvas: HTMLCanvasElement, opts: { onPick: (loc
 		sync, move, rollDice, hideDice, diceTop, screenOf, invalidate,
 		setHighlights(h: Highlights) { hl = h; applyHighlights(); },
 		get board() { return board; },
+		setInsets(i: { top: number; right: number; bottom: number; left: number }) { insets = i; fit(); invalidate(); },
+		/** Projected board rectangle in CSS px (for tests). */
+		boardRect() {
+			const r = canvas.getBoundingClientRect(); const xs: number[] = [], ys: number[] = [];
+			for (const [x, z] of [[-7.4, -6.65], [8.65, -6.65], [-7.4, 6.65], [8.65, 6.65]]) { const p = new THREE.Vector3(x, 0, z).project(camera); xs.push(r.left + ((p.x + 1) / 2) * r.width); ys.push(r.top + ((1 - p.y) / 2) * r.height); }
+			return { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys), pr: curPr };
+		},
 		destroy() { cancelAnimationFrame(raf); ro.disconnect(); canvas.removeEventListener('pointerdown', onDown); canvas.removeEventListener('pointerup', onUp); composer.dispose(); pmrem.dispose(); renderer.dispose(); scene.traverse((o) => (o as THREE.Mesh).geometry?.dispose()); }
 	};
 }
