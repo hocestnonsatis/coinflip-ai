@@ -1,16 +1,43 @@
 {
-	"name": "CoinFlip‑1P · the 1‑parameter AI",
-	"short_name": "CoinFlip‑1P",
-	"description": "A 1‑parameter AI parody that flips a coin.",
+	"name": "Tiny Models · absurdly tiny AI models",
+	"short_name": "Tiny Models",
+	"description": "Absurdly tiny AI models (1–6 parameters) running real ONNX in your browser.",
 	"start_url": "/",
 	"scope": "/",
 	"display": "standalone",
 	"background_color": "#07070c",
 	"theme_color": "#07070c",
 	"icons": [
-		{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
-		{ "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
-		{ "src": "/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
-		{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+		{
+			"src": "/icon-192.png",
+			"sizes": "192x192",
+			"type": "image/png"
+		},
+		{
+			"src": "/icon-512.png",
+			"sizes": "512x512",
+			"type": "image/png"
+		},
+		{
+			"src": "/icon-512-maskable.png",
+			"sizes": "512x512",
+			"type": "image/png",
+			"purpose": "maskable"
+		},
+		{
+			"src": "/favicon.svg",
+			"sizes": "any",
+			"type": "image/svg+xml"
+		}
+	],
+	"shortcuts": [
+		{
+			"name": "CoinFlip‑1P",
+			"url": "/coin"
+		},
+		{
+			"name": "DiceRoll‑6P",
+			"url": "/dice"
+		}
 	]
 }

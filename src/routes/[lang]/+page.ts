@@ -1,8 +1,8 @@
 import { error } from '@sveltejs/kit';
 import type { Lang } from '#lib/i18n';
-const PATH_LANGS = ['tr', 'de', 'es', 'fr'];
-export const entries = () => [{ lang: 'tr' }, { lang: 'de' }, { lang: 'es' }, { lang: 'fr' }];
+import { PATH_LANGS } from '#lib/site';
+export const entries = () => PATH_LANGS.map((lang) => ({ lang }));
 export const load = ({ params }: { params: { lang: string } }) => {
-	if (!PATH_LANGS.includes(params.lang)) error(404, 'Not found');
+	if (!(PATH_LANGS as readonly string[]).includes(params.lang)) error(404, 'Not found');
 	return { lang: params.lang as Lang };
 };

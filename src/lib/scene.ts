@@ -70,7 +70,7 @@ function edgeTexture(): THREE.CanvasTexture {
 	const t = new THREE.CanvasTexture(c); t.wrapS = THREE.RepeatWrapping; return t;
 }
 
-function woodTextures() {
+export function woodTextures() {
 	const s = 1024;
 	const mk = () => { const c = document.createElement('canvas'); c.width = c.height = s; return [c, c.getContext('2d')!] as const; };
 	const [cc, g] = mk(), [bc, bg] = mk();
@@ -98,7 +98,7 @@ function woodTextures() {
 	return { color, bump };
 }
 
-const VignetteShader = {
+export const VignetteShader = {
 	uniforms: { tDiffuse: { value: null }, strength: { value: 1.25 }, grain: { value: 0.025 }, time: { value: 0 } },
 	vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);} ',
 	fragmentShader: `uniform sampler2D tDiffuse; uniform float strength; uniform float grain; uniform float time; varying vec2 vUv;

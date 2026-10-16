@@ -1,5 +1,5 @@
 {
-  "name": "coinflip-ai",
+  "name": "tiny-models",
   "private": true,
   "version": "1.0.0",
   "type": "module",
@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check",
-    "test": "node --experimental-strip-types tests/model.test.ts"
+    "test": "node --experimental-strip-types tests/model.test.ts && node --experimental-strip-types tests/dice.test.ts"
   },
   "devDependencies": {
     "@sveltejs/adapter-cloudflare": "^8.0.0",

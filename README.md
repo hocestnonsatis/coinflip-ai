@@ -1,41 +1,40 @@
-# 🪙 CoinFlip‑1P
+# 🪙🎲 Tiny Models
 
-> **Tarihin en iyi tahmin modeli.** 1 parametreli yapay zekâ, **%50 doğruluk (SOTA)**, 0 halüsinasyon.
+> **Absürt derecede küçük yapay zekâ modelleri.** Trilyon parametre kimin umurunda? Burada modeller avuç içine sığar.
 
-Son teknoloji bir yapay zekâ modelini alıp **tek bir parametreye** kadar quantize ettik. Kalan 1,8 trilyon parametre emekli oldu. Geriye kalan tek ağırlık, tarayıcınızda çalışıyor ve hayattaki tek amacına hizmet ediyor: **yazı mı tura mı?**
+🔗 **Canlı:** https://tiny-models.anil-oz.workers.dev · (eski adres `coinflip-ai.anil-oz.workers.dev` buraya yönlenir)
 
-🔗 **Canlı demo:** https://coinflip-ai.anil-oz.workers.dev
+![Tiny Models](docs/hub.png)
 
-![CoinFlip-1P ekran görüntüsü](docs/screenshot.png)
+| Model | Parametre | Doğruluk | Adres |
+|---|---|---|---|
+| 🪙 **CoinFlip‑1P** | 1 | %50,0 (SOTA) | [/coin](https://tiny-models.anil-oz.workers.dev/coin) |
+| 🎲 **DiceRoll‑6P** | 6 | %16,7 (SOTA) | [/dice](https://tiny-models.anil-oz.workers.dev/dice) |
+| ✊ RockPaperScissors‑3P | 3 | yakında | — |
+| 🎱 Magic8Ball‑20P | 20 | yakında | — |
+
+Her dil kendi adresinde: `/`, `/tr`, `/de`, `/es`, `/fr` (ve `/tr/coin`, `/tr/dice` …). İngilizce adreslere tarayıcı dili (Accept-Language) veya seçilen dil çereziyle gelen ziyaretçiler kendi dillerine yönlendirilir.
 
 ## Nasıl çalışır?
 
-1. Bir evet/hayır sorusu yazın (ör. *“Bugün şemsiye almalı mıyım?”*) ya da boş bırakın.
+1. (İsteğe bağlı) bir soru yazın: *“Bugün şemsiye almalı mıyım?”* ya da *“Kaç saat uyumalıyım?”*
 2. Butonu **basılı tutun** (veya Space / Enter), güç toplansın, sonra **bırakın**.
-3. Basılı tutma süreniz, kriptografik rastgele bir titreşimle (crypto.getRandomValues) hash'lenip modelin girdisi `z ~ 𝒩(0,1)` olur; model `σ(w · z · 1,5)` hesaplar.
-4. Para, o güçle havaya fırlar, döner, sekip masaya oturur. **Yazı = Evet, Tura = Hayır.**
+3. Basılı tutma süreniz kriptografik rastgele bir titreşimle (crypto.getRandomValues) hash'lenip modelin girdisi olur.
+4. Model **gerçek bir ONNX dosyası** olarak tarayıcıda **ONNX Runtime Web** ile (WebGPU, olmazsa WASM) çalışır; yüklenemezse sessizce TypeScript matematiğine döner.
 
-Ne kadar uzun basarsanız atış o kadar güçlü olur. 3 saniyeyi geçerseniz… *aşırı güç!* ⚡
+### CoinFlip‑1P
+`z ~ 𝒩(0,1)` → `σ(w · z · 1,5)` · tek parametre `w` · `static/model/coinflip-1p.onnx` (`scripts/build-onnx.py`). **Yazı = Evet, Tura = Hayır.**
 
-### Model kartı
+### DiceRoll‑6P
+6 Gumbel gürültüsü `g` → `softmax((g + b) · 1,0)` · altı parametre `b` (hepsi 1/6, elle ayarlandı) · `static/model/diceroll-6p.onnx` (`scripts/build-onnx-dice.py`). Sonuç 1–6, güven = softmax maksimumu. Eşit bias'lar sayesinde her yüz tam olarak 1/6 olasılıklı (bkz. `npm test`).
 
-| | |
-|---|---|
-| Parametre sayısı | 1 |
-| Ağırlık boyutu | 4 bayt |
-| Eğitim verisi | 3 bozuk para, 1 çay bardağı |
-| Benchmark | YazıTura‑Bench'te %50 ± şans (SOTA) |
-| Halüsinasyon | 0. Hayal gücü yok ki. |
-| Kısıtlar | Hayati kararlar için kullanmayın. Ya da kullanın, bize ne. |
+Her iki modelde: 3D sahne (three.js, ahşap masa, lamba ışığı), LLM gibi token token akan yorumlar, sonucu kopyalama, model kartı, 5 dil, `prefers-reduced-motion` desteği.
 
 ## Teknoloji
 
-- **SvelteKit 3** + **Svelte 5** (runes)
-- **three.js**: PBR mat madeni para, ahşap masa, sıcak lamba ışığı, yumuşak gölgeler, bloom/vignette, parçacıklar
-- **Cloudflare Workers** (`@sveltejs/adapter-cloudflare`)
-- **ONNX Runtime Web**: tek parametre gerçek bir ONNX modelinde (`static/model/coinflip-1p.onnx`, 339 bayt: `z → Mul(w) → Mul(1,5) → Sigmoid → p`, tek initializer `w`). Tarayıcıda WebGPU, olmazsa WASM ile çalışır; ORT yüklenemezse sessizce TypeScript matematiğine döner. `z` ve 1/6000 kenar bandı TS'de kalır, yalnızca `p` ONNX'ten gelir. ORT, WebGPU wasm'ı (~27 MB) Workers'ın 25 MiB dosya sınırını aştığı için jsDelivr'dan, ilk boyamadan sonra tembel yüklenir. Modeli yeniden üretmek: `pip install onnx onnxruntime && python3 scripts/build-onnx.py`.
-- i18n: Türkçe, English, Deutsch, Español, Français (tarayıcı diline göre, varsayılan İngilizce)
-- `prefers-reduced-motion` desteği, mobil uyumlu
+- **SvelteKit 3** + **Svelte 5**, **three.js**, **ONNX Runtime Web** (jsDelivr'dan tembel yükleme)
+- **Cloudflare Workers** (`@sveltejs/adapter-cloudflare`), Cloudflare Web Analytics
+- `redirect-worker/`: eski `coinflip-ai` Worker'ı, yeni adrese 301 yönlendirme
 
 ## Çalıştırma
 
@@ -44,26 +43,21 @@ Node **22+** gerekir.
 ```bash
 npm i
 npm run dev        # geliştirme sunucusu
-npm run build      # üretim derlemesi
-npm run preview    # derlemeyi yerelde önizle
-```
-
-### Deploy (Cloudflare Workers)
-
-```bash
-npx wrangler login     # veya CLOUDFLARE_API_TOKEN ortam değişkeni
-npm run build
-npx wrangler deploy
+npm test           # her iki modelin dağılım testleri (1e6 örnek)
+npm run build && npx wrangler deploy
+python3 scripts/build-onnx.py && python3 scripts/build-onnx-dice.py   # ONNX modellerini yeniden üret (pip install onnx onnxruntime)
 ```
 
 ---
 
 ## English
 
-**CoinFlip‑1P** is a state‑of‑the‑art AI model quantized down to **one parameter**, running entirely in your browser. Its sole purpose: flipping a coin. 50% accuracy, SOTA, zero hallucinations.
+**Absurdly tiny AI models.** Who needs a trillion parameters? Live at https://tiny-models.anil-oz.workers.dev (the old `coinflip-ai.anil-oz.workers.dev` address redirects here).
 
-Type a yes/no question, **press and hold** the button to charge the toss, and release. Your hold duration, hashed with a crypto-random jitter, becomes the model input `z ~ 𝒩(0,1)`; the single weight computes `σ(w · z · 1.5)`, and a physically‑animated 3D coin delivers the verdict (**Heads = Yes, Tails = No**).
+- 🪙 **CoinFlip‑1P** (`/coin`): 1 parameter, `σ(w · z · 1.5)`, 50.0% accuracy (SOTA). Heads = Yes, Tails = No.
+- 🎲 **DiceRoll‑6P** (`/dice`): 6 parameters (one bias per face, all 1/6), `softmax((g + b) · 1.0)` over Gumbel noise, 16.7% accuracy (SOTA). Answers 1–6; confidence = softmax max; exactly uniform faces (see `npm test`).
+- ✊ RockPaperScissors‑3P and 🎱 Magic8Ball‑20P: coming soon.
 
-Live: https://coinflip-ai.anil-oz.workers.dev · Stack: SvelteKit 3, Svelte 5, three.js, Cloudflare Workers · Run: Node 22, `npm i && npm run dev`, deploy with `npx wrangler deploy`.
+Type an optional question, **hold** the button (or Space / Enter) and release. The hold duration, hashed with crypto‑random jitter, becomes the model input. Each model is a real ONNX file run by ONNX Runtime Web (WebGPU, else WASM), lazy‑loaded from jsDelivr, with a silent TypeScript fallback. Every language has its own URL (`/`, `/tr`, `/de`, `/es`, `/fr`, plus `/coin` and `/dice` under each).
 
-Engine: the single parameter lives in a real ONNX model (`static/model/coinflip-1p.onnx`, 339 bytes: z → Mul(w) → Mul(1.5) → Sigmoid → p, one initializer). It runs in ONNX Runtime Web (WebGPU, else WASM), lazy-loaded from jsDelivr after first paint, and silently falls back to TypeScript math. z and the edge band stay in TS; only p comes from ONNX. Rebuild: `python3 scripts/build-onnx.py`.
+Stack: SvelteKit 3, Svelte 5, three.js, ONNX Runtime Web, Cloudflare Workers. Run: Node 22, `npm i && npm run dev`, `npm test`, deploy with `npm run build && npx wrangler deploy`. Rebuild models: `python3 scripts/build-onnx.py && python3 scripts/build-onnx-dice.py`.

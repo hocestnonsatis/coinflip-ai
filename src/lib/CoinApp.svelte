@@ -5,6 +5,9 @@
 	import { DICTS, LANGS, type Lang } from '#lib/i18n';
 	import type { CoinScene } from '#lib/scene';
 	import type { Backend } from '#lib/engine';
+	import { SITE, REPO, pathFor, urlFor, setLangPref } from '#lib/site';
+	import { HUB } from '#lib/i18n-hub';
+	import Seo from './Seo.svelte';
 
 	type Phase = 'loading' | 'ready' | 'thinking' | 'flipping' | 'done';
 	let canvas: HTMLCanvasElement;
@@ -13,10 +16,6 @@
 	let loadPct = $state(0);
 	let log = $state<string[]>([]);
 	let { data }: { data: { lang: Lang | null } } = $props();
-	const SITE = 'https://coinflip-ai.anil-oz.workers.dev';
-	const REPO = 'https://github.com/hocestnonsatis/coinflip-ai';
-	const OG_LOCALE: Record<Lang, string> = { en: 'en_US', tr: 'tr_TR', de: 'de_DE', es: 'es_ES', fr: 'fr_FR' };
-	const langUrl = (l: Lang) => `${SITE}${l === 'en' ? '/' : `/${l}`}`;
 	const initialLang = (() => data.lang ?? 'en')();
 	let lang = $state<Lang>(initialLang);
 	let last = $state<{ result: Side; confidence: number; z: number; trit: number; tps: number; ms: number } | null>(null);
@@ -88,13 +87,13 @@
 	const count = (k: Side) => history.filter((h) => h === k).length;
 	const busy = $derived(phase === 'thinking' || phase === 'flipping' || phase === 'loading');
 	const engineName = (e: Backend | 'loading') => e === 'webgpu' ? 'ONNX Runtime · WebGPU' : e === 'wasm' ? 'ONNX Runtime · WASM' : e === 'loading' ? '…' : t.engineTs;
-	const jsonLd = $derived(JSON.stringify({
+	const jsonLd = $derived({
 		'@context': 'https://schema.org', '@type': 'WebApplication', name: 'CoinFlip‑1P', alternateName: t.title,
-		url: langUrl(lang), description: t.desc, inLanguage: lang, applicationCategory: 'EntertainmentApplication',
+		url: urlFor(lang, 'coin'), description: t.desc, inLanguage: lang, applicationCategory: 'EntertainmentApplication',
 		operatingSystem: 'Any (web browser)', browserRequirements: 'Requires JavaScript and WebGL', isAccessibleForFree: true,
 		offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
-		author: { '@type': 'Person', name: 'Anıl ÖZ' }, sameAs: [REPO], image: `${SITE}/og.png`
-	}).replace(/</g, '\\u003c'));
+		author: { '@type': 'Person', name: 'Anıl ÖZ' }, sameAs: [REPO], image: `${SITE}/og-coin.png`, isPartOf: { '@type': 'WebSite', name: 'Tiny Models', url: `${SITE}/` }
+	});
 	const label = (s: Side) => (s === 'yazi' ? t.heads : s === 'tura' ? t.tails : t.edge);
 	const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 	const push = (l: string) => (log = [...log.slice(-4), l]);
@@ -104,7 +103,7 @@
 		reduced = mq.matches;
 		const q = new URLSearchParams(location.search).get('lang') as Lang | null;
 		if (data.lang) lang = data.lang;
-		else if (q && LANGS.some((l) => l.code === q)) { lang = q; localStorage.setItem('lang', q); window.history.replaceState(window.history.state, '', q === 'en' ? '/' : `/${q}`); }
+		else if (q && LANGS.some((l) => l.code === q)) { lang = q; localStorage.setItem('lang', q); window.history.replaceState(window.history.state, '', pathFor(q, 'coin')); }
 		// on "/" without a preference the page stays English; language redirects happen before render
 		// (server: cookie/Accept-Language → 302, inline script: saved localStorage choice)
 		const onMq = () => (reduced = mq.matches);
@@ -133,7 +132,7 @@
 		document.documentElement.lang = lang;
 		scene?.setFaces(t.heads, t.tails, t.coinLegend, t.edgeLegend);
 	});
-	function setLang(l: Lang) { lang = l; localStorage.setItem('lang', l); document.cookie = `lang=${l}; path=/; max-age=31536000; samesite=lax`; try { replaceState(l === 'en' ? '/' : `/${l}`, {}); } catch { /* router not ready */ } }
+	function setLang(l: Lang) { lang = l; setLangPref(l); try { replaceState(pathFor(l, 'coin'), {}); } catch { /* router not ready */ } }
 
 	const HOLD_CAP = 3000;
 	let holding = $state(false);
@@ -198,29 +197,7 @@
 	}
 </script>
 
-<svelte:head>
-	<title>{t.title}</title>
-	<meta name="description" content={t.desc} />
-	<link rel="canonical" href={langUrl(lang)} />
-	{#each LANGS as l (l.code)}<link rel="alternate" hreflang={l.code} href={langUrl(l.code)} />{/each}
-	<link rel="alternate" hreflang="x-default" href={`${SITE}/`} />
-	<meta property="og:type" content="website" />
-	<meta property="og:site_name" content="CoinFlip‑1P" />
-	<meta property="og:title" content={t.title} />
-	<meta property="og:description" content={t.desc} />
-	<meta property="og:url" content={langUrl(lang)} />
-	<meta property="og:image" content={`${SITE}/og.png`} />
-	<meta property="og:image:width" content="1200" />
-	<meta property="og:image:height" content="630" />
-	<meta property="og:image:alt" content={t.title} />
-	<meta property="og:locale" content={OG_LOCALE[lang]} />
-	{#each LANGS.filter((l) => l.code !== lang) as l (l.code)}<meta property="og:locale:alternate" content={OG_LOCALE[l.code]} />{/each}
-	<meta name="twitter:card" content="summary_large_image" />
-	<meta name="twitter:title" content={t.title} />
-	<meta name="twitter:description" content={t.desc} />
-	<meta name="twitter:image" content={`${SITE}/og.png`} />
-	{@html `<script type="application/ld+json">${jsonLd}</script>`}
-</svelte:head>
+<Seo {lang} slug="coin" title={t.title} desc={t.desc} image="/og-coin.png" siteName="Tiny Models" {jsonLd} />
 <svelte:window onkeydown={(e) => { const tag = (e.target as HTMLElement).tagName; if (tag === 'SELECT' || tag === 'SUMMARY' || !isTrigger(e)) return; if (tag === 'INPUT' && e.code === 'Space') return; e.preventDefault(); if (!e.repeat) startHold(); }}
 	onkeyup={(e) => { if (isTrigger(e) && holding) { e.preventDefault(); release(); } }}
 	onblur={cancelHold} />
@@ -229,7 +206,7 @@
 
 <main class:reduced>
 	<header>
-		<h1 class="brand"><span class="dot" class:live={phase !== 'loading'}></span> CoinFlip‑1P <small>v0.0.1‑ultra‑quant</small><span class="sr-only"> · {t.title.split('·').slice(1).join('·').trim()}</span></h1>
+		<a class="back" href={pathFor(lang, '')} aria-label={HUB[lang].back}>←</a><h1 class="brand"><span class="dot" class:live={phase !== 'loading'}></span> CoinFlip‑1P <small>v0.0.1‑ultra‑quant</small><span class="sr-only"> · {t.title.split('·').slice(1).join('·').trim()}</span></h1>
 		<div class="right">
 			<div class="badges"><span class="sota">{t.badges[0]}</span><span>{t.badges[1]}</span><span>{t.badges[2]}</span><span>{t.badges[3]}</span></div>
 			<select class="lang" aria-label={t.langLabel} value={lang} onchange={(e) => setLang(e.currentTarget.value as Lang)}>
@@ -311,6 +288,8 @@
 	header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
 	.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 	.noscript { max-width: 560px; margin: 24px auto; text-align: center; line-height: 1.5; }
+	.back { color: #eae6da; text-decoration: none; font-size: 18px; opacity: 0.6; padding: 2px 8px 2px 0; } .back:hover { opacity: 1; color: #ffe08a; }
+	header > a + h1 { margin-right: auto; }
 	.brand { margin: 0; font-size: 16px; font-weight: 800; letter-spacing: 0.02em; display: flex; align-items: center; gap: 8px; }
 	.brand small { opacity: 0.5; font-weight: 500; }
 	.dot { width: 9px; height: 9px; border-radius: 50%; background: #f5a524; box-shadow: 0 0 10px #f5a524; }

@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://coinflip-ai.anil-oz.workers.dev/sitemap.xml
+Sitemap: https://tiny-models.anil-oz.workers.dev/sitemap.xml

@@ -13,13 +13,35 @@ let ort: typeof ORT | null = null;
 export let backend: Backend = 'ts';
 let loading: Promise<Backend> | null = null;
 
+let ortP: Promise<typeof ORT> | null = null;
+/** Shared lazy ORT loader (one CDN import for all models). */
+export function loadOrt(): Promise<typeof ORT> {
+	return (ortP ??= (async () => {
+		const o = (await import(/* @vite-ignore */ `${CDN}ort.webgpu.min.mjs`)) as typeof ORT;
+		o.env.wasm.wasmPaths = CDN; o.env.wasm.numThreads = 1; o.env.logLevel = 'error';
+		return o;
+	})());
+}
+/** Create a session on WebGPU (if fast) else WASM, verified by `check`. Null if nothing works. */
+export async function createSession(url: string, check: (s: ORT.InferenceSession, o: typeof ORT) => Promise<void>): Promise<{ session: ORT.InferenceSession; backend: Backend } | null> {
+	const o = await loadOrt();
+	const model = new Uint8Array(await (await fetch(url)).arrayBuffer());
+	for (const ep of ('gpu' in navigator ? ['webgpu', 'wasm'] : ['wasm']) as Backend[]) {
+		try {
+			const s = await o.InferenceSession.create(model, { executionProviders: [ep] });
+			await check(s, o);
+			const t0 = performance.now(); await check(s, o);
+			if (ep === 'webgpu' && performance.now() - t0 > 50) throw new Error('software GPU too slow'); // e.g. SwiftShader
+			return { session: s, backend: ep };
+		} catch (e) { console.info(`[engine] ${ep} unavailable`, e); }
+	}
+	return null;
+}
+
 export function loadEngine(): Promise<Backend> {
 	return (loading ??= (async () => {
 		try {
-			ort = (await import(/* @vite-ignore */ `${CDN}ort.webgpu.min.mjs`)) as typeof ORT;
-			ort.env.wasm.wasmPaths = CDN;
-			ort.env.wasm.numThreads = 1;
-			ort.env.logLevel = 'error';
+			ort = await loadOrt();
 			const model = new Uint8Array(await (await fetch('/model/coinflip-1p.onnx')).arrayBuffer());
 			const eps: Backend[] = 'gpu' in navigator ? ['webgpu', 'wasm'] : ['wasm'];
 			for (const ep of eps) {
