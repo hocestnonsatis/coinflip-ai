@@ -9,6 +9,7 @@
 	import type { DiceScene } from '#lib/dice-scene';
 	import type { Backend } from '#lib/engine';
 	import Seo from './Seo.svelte';
+	import Feedback from './Feedback.svelte';
 
 	type Phase = 'loading' | 'ready' | 'thinking' | 'rolling' | 'done';
 	type Result = { face: number; rare: boolean; confidence: number; tps: number; ms: number };
@@ -216,6 +217,7 @@
 			{#if oracle}<p class="oracle" aria-busy={streaming}>{oracleShown}{#if streaming}<span class="cursor" aria-hidden="true">▍</span>{/if}</p>{/if}
 			<p>{t.confidence}: <b>{pct.format(last.confidence)}</b> <span class="conf"><span style:width="{last.confidence * 100}%"></span></span></p>
 			<button type="button" class="copy" onclick={copyVerdict}>{#if copyFeedback === 'ok'}{t.copied}{:else if copyFeedback === 'fail'}{t.copyFail}{:else}{t.copy}{/if}</button>
+			{#key last}<Feedback {lang} />{/key}
 		{:else if phase === 'thinking'}
 			<h2 class="think">{t.thinking}<span>.</span><span>.</span><span>.</span></h2>
 		{:else if phase === 'rolling'}

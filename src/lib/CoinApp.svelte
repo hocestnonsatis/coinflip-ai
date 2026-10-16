@@ -8,6 +8,7 @@
 	import { SITE, REPO, pathFor, urlFor, setLangPref } from '#lib/site';
 	import { HUB } from '#lib/i18n-hub';
 	import Seo from './Seo.svelte';
+	import Feedback from './Feedback.svelte';
 
 	type Phase = 'loading' | 'ready' | 'thinking' | 'flipping' | 'done';
 	let canvas: HTMLCanvasElement;
@@ -237,6 +238,7 @@
 			<button type="button" class="copy" onclick={copyVerdict} aria-live="polite">
 				{#if copyFeedback === 'ok'}{t.copied}{:else if copyFeedback === 'fail'}{t.copyFail}{:else}{t.copy}{/if}
 			</button>
+			{#key last}<Feedback {lang} />{/key}
 		{:else if phase === 'thinking'}
 			<h2 class="think">{t.thinking}<span>.</span><span>.</span><span>.</span></h2>
 		{:else if phase === 'flipping'}

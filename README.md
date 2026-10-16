@@ -39,7 +39,7 @@ TD‑Gammon tarzı tavla (backgammon) ağı: Tesauro'nun 198 girdili kodlaması 
 - 🤗 Hugging Face: [https://huggingface.co/hocestnonsatis/tavla-1.6k](https://huggingface.co/hocestnonsatis/tavla-1.6k) (ONNX, safetensors, eğitim kodu, örnek)
 - Yeniden üret: `cd train && python3 td.py d 0.2 0.02 0.7 4 95`, sonra `python3 scripts/build-onnx-tavla.py train/best.npz`.
 
-Coin ve dice'ta: 3D sahne (three.js, ahşap masa, lamba ışığı), LLM gibi token token akan yorumlar, sonucu kopyalama, model kartı, 5 dil, `prefers-reduced-motion` desteği.
+Coin ve dice'ta: 3D sahne (three.js, ahşap masa, lamba ışığı), LLM gibi token token akan yorumlar, sonucu kopyalama, 👍/👎 geri bildirim (RLHF parodisi), model kartı, 5 dil, `prefers-reduced-motion` desteği.
 
 ## Teknoloji
 
