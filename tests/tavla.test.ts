@@ -56,3 +56,28 @@ console.log(`tavla ok: ${fx.cases.length} positions, ${n} legal plays identical 
 	for (const m of mf) assert.ok(Math.abs(forwardTs(encode(m.b), 1)[0] - m.p) < 1e-5);
 	console.log(`tavla model ok: TS forward matches onnxruntime on ${mf.length} positions`);
 }
+// Bar entry (bug report: entering onto a point that already holds your own checkers must work, in engine AND click UI).
+{
+	const { resolveClick } = await import('../src/lib/tavla-engine.ts');
+	const base = (): Board => { const b = new Array(28).fill(0); b[5] = 9; b[11] = -5; b[16] = -3; b[18] = -5; b[23] = -2; b[21] = 2; b[24] = 1; b[26] = 3; return b; };
+	const next = (b: Board, d1: number, d2: number) => legalSequences(b, d1, d2).map((q) => q.steps[0]);
+	const tgt = (b: Board, d1: number, d2: number) => new Set(next(b, d1, d2).filter((s) => s[0] === 24).map((s) => s[1]));
+	// own checkers on 22-point (idx 21): die 3 enters there; empty 20-point (idx 19): die 5
+	let b = base(); assert.ok(tgt(b, 3, 5).has(21) && tgt(b, 3, 5).has(19));
+	// opponent blot on idx 20 → die 4 enters and hits
+	b = base(); b[20] = -1; b[23] = -1; assert.ok(legalSequences(b, 4, 6).some((q) => q.steps[0][0] === 24 && q.steps[0][1] === 20 && q.board[25] === 1));
+	// blocked by 2+ opponent checkers on idx 23 (die 1) → no entry with the 1
+	b = base(); assert.ok(!tgt(b, 1, 3).has(23));
+	// doubles from the bar onto own point: 3-3 enters on idx 21 and continues
+	b = base(); assert.ok(legalSequences(b, 3, 3).every((q) => q.steps[0][0] === 24 && q.steps[0][1] === 21 && q.steps.length === 4));
+	// two on the bar: both must enter before anything else moves
+	b = base(); b[24] = 2; b[5] = 8; assert.ok(legalSequences(b, 3, 5).every((q) => q.steps[0][0] === 24 && q.steps[1][0] === 24));
+	// UI: bar auto-selected → click own point 22 (idx 21) plays the entry
+	b = base(); const ns = next(b, 3, 5);
+	assert.deepEqual(resolveClick(ns, 24, 21), { step: [24, 21] });
+	// UI: selection was cleared (e.g. user tapped the bar checker again) → clicking the own-checker target must still enter
+	assert.deepEqual(resolveClick(ns, null, 21), { step: [24, 21] });
+	// UI: tapping the only source (bar) again keeps it selected instead of deselecting
+	assert.deepEqual(resolveClick(ns, 24, 24), { sel: 24 });
+	console.log('tavla bar-entry ok: own point, empty, hit, blocked, doubles, two on bar, click UI');
+}

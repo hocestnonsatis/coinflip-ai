@@ -5,7 +5,7 @@
 	import { TAVLA } from '#lib/i18n-tavla';
 	import { HUB } from '#lib/i18n-hub';
 	import { SITE, REPO, pathFor, urlFor, setLangPref } from '#lib/site';
-	import { start, flip, legalSequences, applyStep, pips, type Board, type Step, type Seq } from '#lib/tavla-engine';
+	import { start, flip, legalSequences, applyStep, pips, resolveClick, type Board, type Step, type Seq } from '#lib/tavla-engine';
 	import { STATS } from '#lib/tavla-stats';
 	import type { Backend } from '#lib/engine';
 	import Seo from './Seo.svelte';
@@ -55,7 +55,7 @@
 	const matching = $derived(seqs.filter((s) => done.every((d, i) => s.steps[i][0] === d[0] && s.steps[i][1] === d[1])));
 	const nextSteps = $derived(phase === 'move' ? matching.map((s) => s.steps[done.length]).filter(Boolean) : []);
 	const sources = $derived(new Set(nextSteps.map((s) => s[0])));
-	const targets = $derived(sel === null ? new Set<number>() : new Set(nextSteps.filter((s) => s[0] === sel).map((s) => s[1])));
+	const targets = $derived(new Set(nextSteps.filter((s) => sel === null || s[0] === sel).map((s) => s[1])));
 	const usedDice = $derived.by(() => {
 		if (phase !== 'move' || !matching.length) return [] as boolean[];
 		const u = matching[0].used.slice(0, done.length);
@@ -105,9 +105,9 @@
 	}
 	function clickPoint(i: number) {
 		if (phase !== 'move') return;
-		if (sel !== null && targets.has(i)) { step([sel, i]); return; }
-		if (sources.has(i)) { sel = sel === i ? null : i; status = sel === null ? t.pickChecker : t.pickTarget; return; }
-		sel = null; status = t.pickChecker;
+		const r = resolveClick(nextSteps, sel, i);
+		if ('step' in r) { step(r.step); return; }
+		sel = r.sel; status = sel === null ? t.pickChecker : t.pickTarget;
 	}
 	function step(s: Step) {
 		history = [...history, hb]; hb = applyStep(hb, s); done = [...done, s];
@@ -187,7 +187,10 @@
 		else if (q && LANGS.some((l) => l.code === q)) { lang = q; localStorage.setItem('lang', q); window.history.replaceState(window.history.state, '', pathFor(q, 'tavla')); }
 		(async () => {
 			ai = await import('#lib/tavla-ai');
-			newGame();
+			// Scripted positions for testing: ?pos=<28 comma-separated ints, human view>&dice=a,b
+			const sp = new URLSearchParams(location.search), pos = sp.get('pos')?.split(',').map(Number), dd = sp.get('dice')?.split(',').map(Number);
+			if (pos?.length === 28 && pos.every(Number.isInteger) && dd?.length === 2 && dd.every((d) => d >= 1 && d <= 6)) { hb = pos; beginHuman(dd); }
+			else newGame();
 			try { engine = await ai.loadTavlaEngine(); } catch { engine = 'ts'; }
 		})();
 		return () => { gameId++; streamId++; };

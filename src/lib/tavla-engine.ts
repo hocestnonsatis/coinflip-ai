@@ -99,3 +99,16 @@ export function encode(b: Board, out: Float32Array = new Float32Array(198), off 
 	out[off + 196] = 0; out[off + 197] = 1;
 	return out;
 }
+
+/** Click-to-move resolution for the UI. nextSteps = legal next single steps; sel = selected source (or null); i = clicked point (24 = bar, -1 = off).
+ * A click on a legal destination plays it even when nothing (or another checker) is selected, as long as exactly one source can reach it
+ * (e.g. entering from the bar onto a point that already holds your own checkers). */
+export function resolveClick(nextSteps: Step[], sel: number | null, i: number): { step: Step } | { sel: number | null } {
+	const from = (f: number) => nextSteps.filter((s) => s[0] === f);
+	if (sel !== null && from(sel).some((s) => s[1] === i)) return { step: [sel, i] };
+	const srcs = [...new Set(nextSteps.map((s) => s[0]))];
+	if (srcs.includes(i)) return { sel: sel === i && srcs.length > 1 ? null : i };
+	const reach = [...new Set(nextSteps.filter((s) => s[1] === i).map((s) => s[0]))];
+	if (reach.length === 1) return { step: [reach[0], i] };
+	return { sel: srcs.length === 1 ? srcs[0] : null };
+}
