@@ -4,7 +4,7 @@
 	import { LANGS, type Lang } from '#lib/i18n';
 	import { TAVLA } from '#lib/i18n-tavla';
 	import { HUB } from '#lib/i18n-hub';
-	import { SITE, REPO, pathFor, urlFor, setLangPref } from '#lib/site';
+	import { SITE, REPO, HF_TAVLA, pathFor, urlFor, setLangPref } from '#lib/site';
 	import { start, flip, legalSequences, applyStep, pips, resolveClick, type Board, type Step, type Seq } from '#lib/tavla-engine';
 	import { STATS } from '#lib/tavla-stats';
 	import type { Backend } from '#lib/engine';
@@ -170,7 +170,7 @@
 	const jsonLd = $derived({
 		'@context': 'https://schema.org', '@type': ['WebApplication', 'VideoGame'], name: 'Tavla‑1.6K', alternateName: t.title, url: urlFor(lang, 'tavla'), description: t.desc,
 		inLanguage: lang, applicationCategory: 'GameApplication', genre: 'Board game', gamePlatform: 'Web browser', operatingSystem: 'Any (web browser)', isAccessibleForFree: true,
-		offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' }, author: { '@type': 'Person', name: 'Anıl ÖZ' }, sameAs: [REPO], image: `${SITE}/og-tavla.png`,
+		offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' }, author: { '@type': 'Person', name: 'Anıl ÖZ' }, sameAs: [REPO, HF_TAVLA], image: `${SITE}/og-tavla.png`,
 		isPartOf: { '@type': 'WebSite', name: 'Tiny Models', url: `${SITE}/` }
 	});
 	const fmtPct = (w: number, n: number) => (n ? `${pct.format(w / n)} (${nf.format(w)}/${nf.format(n)})` : '—');
@@ -291,7 +291,7 @@
 				{#if phase !== 'over' && phase !== 'opening'}<button class="ghost" onclick={newGame}>{t.newGame}</button>{/if}
 				<details>
 					<summary>{t.cardTitle}</summary>
-					<ul>{#each card as [k, v] (k)}<li><b>{k}:</b> {v}</li>{/each}</ul>
+					<ul>{#each card as [k, v] (k)}<li><b>{k}:</b> {v}</li>{/each}<li><b>Hugging Face:</b> <a href={HF_TAVLA} target="_blank" rel="noopener">hocestnonsatis/tavla-1.6k</a> · <a href={REPO} target="_blank" rel="noopener">GitHub</a></li></ul>
 				</details>
 			</aside>
 		</div>
@@ -357,6 +357,7 @@
 	.info, .engine { margin: 8px 0 0; text-align: center; font-size: 10px; opacity: 0.6; }
 	.hint { margin: 8px 0 0; font-size: 11px; opacity: 0.55; text-align: center; }
 	details { margin-top: 10px; font-size: 13px; } summary { cursor: pointer; opacity: 0.85; }
+	details a { color: #ffd36b; }
 	details ul { padding-left: 18px; margin: 8px 0 0; line-height: 1.5; opacity: 0.85; }
 	@keyframes shake { 25% { transform: rotate(12deg) translate(2px, -2px); } 75% { transform: rotate(-12deg) translate(-2px, 2px); } }
 	@keyframes pulse { 50% { opacity: 0.35; } }

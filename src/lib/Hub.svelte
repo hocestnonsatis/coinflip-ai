@@ -3,7 +3,7 @@
 	import { replaceState } from '$app/navigation';
 	import { LANGS, type Lang } from '#lib/i18n';
 	import { HUB, type HubCard } from '#lib/i18n-hub';
-	import { SITE, REPO, pathFor, urlFor, setLangPref } from '#lib/site';
+	import { SITE, REPO, HF_TAVLA, pathFor, urlFor, setLangPref } from '#lib/site';
 	import Seo from './Seo.svelte';
 	import { STATS } from '#lib/tavla-stats';
 
@@ -66,6 +66,7 @@
 					<p class="tag">{it.card.tagline}</p>
 					<dl class="mono">{#each it.card.stats as [k, v] (k)}<div><dt>{k}</dt><dd>{v}</dd></div>{/each}</dl>
 				</div>
+				{#if it.key === 'tavla'}<a class="hf mono" href={HF_TAVLA} target="_blank" rel="noopener">🤗 Hugging Face</a>{/if}
 				{#if it.href}<a class="run" href={it.href}>{h.run} ▸</a>{:else}<span class="badge-soon">{h.soon}</span>{/if}
 			</li>
 		{/each}
@@ -126,6 +127,8 @@
 	.f1 { transform: translateZ(28px); } .f6 { transform: rotateY(180deg) translateZ(28px); } .f2 { transform: rotateY(90deg) translateZ(28px); }
 	.f5 { transform: rotateY(-90deg) translateZ(28px); } .f3 { transform: rotateX(90deg) translateZ(28px); } .f4 { transform: rotateX(-90deg) translateZ(28px); }
 	@keyframes tumble { from { transform: rotateX(-20deg) rotateY(0) rotateZ(10deg); } to { transform: rotateX(340deg) rotateY(360deg) rotateZ(370deg); } }
+	.hf { display: block; text-align: center; font-size: 11px; color: #ffd36b; text-decoration: none; margin: 0 0 8px; opacity: 0.85; }
+	.hf:hover { opacity: 1; text-decoration: underline; }
 	.tavla { width: 74px; height: 56px; border-radius: 6px; background: #5a321a; border: 3px solid #2a160a; position: relative; display: flex; justify-content: space-around; overflow: hidden; }
 	.tavla i { width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-top: 26px solid #e9d7ae; }
 	.tavla i:nth-child(even) { border-top-color: #8f2d22; }
