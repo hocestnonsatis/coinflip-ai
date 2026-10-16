@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { replaceState } from '$app/navigation';
 	import { infer, WEIGHT, BITS, SCALE, type Side } from '#lib/model';
 	import { DICTS, LANGS, detectLang, type Lang } from '#lib/i18n';
 	import type { CoinScene } from '#lib/scene';
@@ -11,7 +12,13 @@
 	let phase = $state<Phase>('loading');
 	let loadPct = $state(0);
 	let log = $state<string[]>([]);
-	let lang = $state<Lang>('en');
+	let { data }: { data: { lang: Lang | null } } = $props();
+	const SITE = 'https://coinflip-ai.anil-oz.workers.dev';
+	const REPO = 'https://github.com/hocestnonsatis/coinflip-ai';
+	const OG_LOCALE: Record<Lang, string> = { en: 'en_US', tr: 'tr_TR', de: 'de_DE', es: 'es_ES', fr: 'fr_FR' };
+	const langUrl = (l: Lang) => `${SITE}${l === 'en' ? '/' : `/${l}`}`;
+	const initialLang = (() => data.lang ?? 'en')();
+	let lang = $state<Lang>(initialLang);
 	let last = $state<{ result: Side; confidence: number; z: number; trit: number; tps: number; ms: number } | null>(null);
 	let legendary = $state(false);
 	const pct = $derived(new Intl.NumberFormat(lang, { style: 'percent', minimumFractionDigits: 1, maximumFractionDigits: 1 }));
@@ -81,6 +88,13 @@
 	const count = (k: Side) => history.filter((h) => h === k).length;
 	const busy = $derived(phase === 'thinking' || phase === 'flipping' || phase === 'loading');
 	const engineName = (e: Backend | 'loading') => e === 'webgpu' ? 'ONNX Runtime · WebGPU' : e === 'wasm' ? 'ONNX Runtime · WASM' : e === 'loading' ? '…' : t.engineTs;
+	const jsonLd = $derived(JSON.stringify({
+		'@context': 'https://schema.org', '@type': 'WebApplication', name: 'CoinFlip‑1P', alternateName: t.title,
+		url: langUrl(lang), description: t.desc, inLanguage: lang, applicationCategory: 'EntertainmentApplication',
+		operatingSystem: 'Any (web browser)', browserRequirements: 'Requires JavaScript and WebGL', isAccessibleForFree: true,
+		offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+		author: { '@type': 'Person', name: 'Anıl ÖZ' }, sameAs: [REPO], image: `${SITE}/og.png`
+	}).replace(/</g, '\\u003c'));
 	const label = (s: Side) => (s === 'yazi' ? t.heads : s === 'tura' ? t.tails : t.edge);
 	const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 	const push = (l: string) => (log = [...log.slice(-4), l]);
@@ -88,7 +102,10 @@
 	onMount(() => {
 		const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
 		reduced = mq.matches;
-		lang = detectLang();
+		const q = new URLSearchParams(location.search).get('lang') as Lang | null;
+		if (data.lang) lang = data.lang;
+		else if (q && LANGS.some((l) => l.code === q)) { lang = q; localStorage.setItem('lang', q); window.history.replaceState(window.history.state, '', q === 'en' ? '/' : `/${q}`); }
+		else lang = detectLang();
 		const onMq = () => (reduced = mq.matches);
 		mq.addEventListener('change', onMq);
 		let cancelled = false;
@@ -113,10 +130,9 @@
 
 	$effect(() => {
 		document.documentElement.lang = lang;
-		document.title = t.title;
 		scene?.setFaces(t.heads, t.tails, t.coinLegend, t.edgeLegend);
 	});
-	function setLang(l: Lang) { lang = l; localStorage.setItem('lang', l); }
+	function setLang(l: Lang) { lang = l; localStorage.setItem('lang', l); try { replaceState(l === 'en' ? '/' : `/${l}`, {}); } catch { /* router not ready */ } }
 
 	const HOLD_CAP = 3000;
 	let holding = $state(false);
@@ -181,7 +197,29 @@
 	}
 </script>
 
-<svelte:head><meta name="description" content={t.desc} /></svelte:head>
+<svelte:head>
+	<title>{t.title}</title>
+	<meta name="description" content={t.desc} />
+	<link rel="canonical" href={langUrl(lang)} />
+	{#each LANGS as l (l.code)}<link rel="alternate" hreflang={l.code} href={langUrl(l.code)} />{/each}
+	<link rel="alternate" hreflang="x-default" href={`${SITE}/`} />
+	<meta property="og:type" content="website" />
+	<meta property="og:site_name" content="CoinFlip‑1P" />
+	<meta property="og:title" content={t.title} />
+	<meta property="og:description" content={t.desc} />
+	<meta property="og:url" content={langUrl(lang)} />
+	<meta property="og:image" content={`${SITE}/og.png`} />
+	<meta property="og:image:width" content="1200" />
+	<meta property="og:image:height" content="630" />
+	<meta property="og:image:alt" content={t.title} />
+	<meta property="og:locale" content={OG_LOCALE[lang]} />
+	{#each LANGS.filter((l) => l.code !== lang) as l (l.code)}<meta property="og:locale:alternate" content={OG_LOCALE[l.code]} />{/each}
+	<meta name="twitter:card" content="summary_large_image" />
+	<meta name="twitter:title" content={t.title} />
+	<meta name="twitter:description" content={t.desc} />
+	<meta name="twitter:image" content={`${SITE}/og.png`} />
+	{@html `<script type="application/ld+json">${jsonLd}</script>`}
+</svelte:head>
 <svelte:window onkeydown={(e) => { const tag = (e.target as HTMLElement).tagName; if (tag === 'SELECT' || tag === 'SUMMARY' || !isTrigger(e)) return; if (tag === 'INPUT' && e.code === 'Space') return; e.preventDefault(); if (!e.repeat) startHold(); }}
 	onkeyup={(e) => { if (isTrigger(e) && holding) { e.preventDefault(); release(); } }}
 	onblur={cancelHold} />
@@ -190,7 +228,7 @@
 
 <main class:reduced>
 	<header>
-		<div class="brand"><span class="dot" class:live={phase !== 'loading'}></span> CoinFlip‑1P <small>v0.0.1‑ultra‑quant</small></div>
+		<h1 class="brand"><span class="dot" class:live={phase !== 'loading'}></span> CoinFlip‑1P <small>v0.0.1‑ultra‑quant</small><span class="sr-only"> · {t.title.split('·').slice(1).join('·').trim()}</span></h1>
 		<div class="right">
 			<div class="badges"><span class="sota">{t.badges[0]}</span><span>{t.badges[1]}</span><span>{t.badges[2]}</span><span>{t.badges[3]}</span></div>
 			<select class="lang" aria-label={t.langLabel} value={lang} onchange={(e) => setLang(e.currentTarget.value as Lang)}>
@@ -198,6 +236,7 @@
 			</select>
 		</div>
 	</header>
+	<noscript><p class="noscript">{t.desc} {t.pitch}</p></noscript>
 
 	{#if phase === 'loading'}
 		<div class="loader" role="status">
@@ -212,18 +251,18 @@
 		<div class="legendary" role="status"><b>★ {t.legendary} ★</b><span>{t.legendarySub}</span></div>
 	{/if}
 		{#if holding}
-			<h1 class="think charge" class:over={charge > 1}>{charge > 1 ? '⚡' : t.charging}</h1>
+			<h2 class="think charge" class:over={charge > 1}>{charge > 1 ? '⚡' : t.charging}</h2>
 		{:else if phase === 'done' && last}
-			<h1 class="pop" class:edge={last.result === 'dik'}>{label(last.result)}{#if asked}<span class="arrow">→ {answer(last.result)}</span>{/if}</h1>
+			<h2 class="pop" class:edge={last.result === 'dik'}>{label(last.result)}{#if asked}<span class="arrow">→ {answer(last.result)}</span>{/if}</h2>
 			{#if oracle}<p class="oracle" aria-live="polite" aria-busy={streaming}>{oracleShown}{#if streaming}<span class="cursor" aria-hidden="true">▍</span>{/if}</p>{/if}
 			<p>{t.confidence}: <b>{pct.format(last.confidence)}</b> <span class="conf"><span style:width="{last.confidence * 100}%"></span></span></p>
 			<button type="button" class="copy" onclick={copyVerdict} aria-live="polite">
 				{#if copyFeedback === 'ok'}{t.copied}{:else if copyFeedback === 'fail'}{t.copyFail}{:else}{t.copy}{/if}
 			</button>
 		{:else if phase === 'thinking'}
-			<h1 class="think">{t.thinking}<span>.</span><span>.</span><span>.</span></h1>
+			<h2 class="think">{t.thinking}<span>.</span><span>.</span><span>.</span></h2>
 		{:else if phase === 'flipping'}
-			<h1 class="think">{t.inferring}</h1>
+			<h2 class="think">{t.inferring}</h2>
 		{/if}
 	</section>
 
@@ -269,7 +308,9 @@
 	main > * { pointer-events: auto; }
 	.mono { font-family: ui-monospace, 'JetBrains Mono', Menlo, monospace; }
 	header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
-	.brand { font-weight: 800; letter-spacing: 0.02em; display: flex; align-items: center; gap: 8px; }
+	.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+	.noscript { max-width: 560px; margin: 24px auto; text-align: center; line-height: 1.5; }
+	.brand { margin: 0; font-size: 16px; font-weight: 800; letter-spacing: 0.02em; display: flex; align-items: center; gap: 8px; }
 	.brand small { opacity: 0.5; font-weight: 500; }
 	.dot { width: 9px; height: 9px; border-radius: 50%; background: #f5a524; box-shadow: 0 0 10px #f5a524; }
 	.dot.live { background: #36e27e; box-shadow: 0 0 12px #36e27e; animation: pulse 2s infinite; }
@@ -282,8 +323,8 @@
 	.bar div { height: 100%; background: linear-gradient(90deg, #ffcf5a, #ff8a3d); transition: width 0.25s; box-shadow: 0 0 12px #ffb340; }
 	.loader .mono { font-size: 12px; opacity: 0.6; }
 	.result { align-self: start; text-align: center; margin-top: 4vh; min-height: 120px; }
-	h1 { margin: 0; font-size: clamp(48px, 12vw, 108px); font-family: Georgia, serif; letter-spacing: 0.04em; background: linear-gradient(180deg, #fff3c4, #e0a33a 60%, #8a5a14); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 4px 24px #ffb34055); }
-	h1.think { font-size: clamp(26px, 6vw, 44px); }
+	h2 { margin: 0; font-size: clamp(48px, 12vw, 108px); font-family: Georgia, serif; letter-spacing: 0.04em; background: linear-gradient(180deg, #fff3c4, #e0a33a 60%, #8a5a14); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 4px 24px #ffb34055); }
+	h2.think { font-size: clamp(26px, 6vw, 44px); }
 	.think span { animation: blink 1s infinite; } .think span:nth-child(2) { animation-delay: 0.2s; } .think span:nth-child(3) { animation-delay: 0.4s; }
 	.pop { animation: pop 0.6s cubic-bezier(0.2, 1.6, 0.4, 1); }
 	.conf { display: inline-block; width: 120px; height: 6px; background: #ffffff18; border-radius: 9px; vertical-align: middle; overflow: hidden; }
@@ -313,7 +354,7 @@
 	.ask input { width: 100%; box-sizing: border-box; padding: 13px 14px; font-size: 16px; color: #fff; background: #ffffff0d; border: 1px solid #ffffff26; border-radius: 12px; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
 	.ask input:focus { border-color: #ffc95a; box-shadow: 0 0 0 3px #ffc95a33; }
 	@keyframes fadeup { from { opacity: 0; transform: translateY(8px); } }
-	h1.edge { background: linear-gradient(180deg, #fff6d8, #ffb347 55%, #b0561c); -webkit-background-clip: text; background-clip: text; }
+	h2.edge { background: linear-gradient(180deg, #fff6d8, #ffb347 55%, #b0561c); -webkit-background-clip: text; background-clip: text; }
 	.legendary { display: inline-block; margin: 0 auto 10px; z-index: 2; text-align: center; padding: 8px 18px; border-radius: 99px; background: linear-gradient(90deg, #3a1d05ee, #6b3a0cee, #3a1d05ee); border: 1px solid #ffc36b; box-shadow: 0 0 40px #ff9a3a66; animation: legend 0.9s cubic-bezier(0.2, 1.6, 0.4, 1), shimmer 2s ease-in-out infinite 0.9s; white-space: nowrap; }
 	.legendary b { display: block; letter-spacing: 0.3em; color: #ffd27a; font-size: 18px; }
 	.legendary span { font-size: 12px; opacity: 0.85; }
@@ -324,7 +365,7 @@
 	.hold .meter { position: absolute; inset: 0; transform-origin: left; transform: scaleX(var(--charge, 0)); background: linear-gradient(90deg, #ffb347, #ff6a1a 70%, #ff3d00); opacity: 0.85; }
 	.hold.holding { animation: tremble 0.08s infinite; box-shadow: 0 0 calc(20px + var(--charge) * 50px) #ff8a2a99, inset 0 1px 0 #fff8; }
 	.hold.over { animation: tremble 0.04s infinite; filter: saturate(1.4); }
-	h1.charge { transform: scale(calc(0.9 + var(--c, 0) * 0.2)); }
+	h2.charge { transform: scale(calc(0.9 + var(--c, 0) * 0.2)); }
 	.hint { margin: 6px 0 0; text-align: center; font-size: 11px; opacity: 0.55; }
 	@keyframes tremble { 25% { transform: translate(1px, -1px); } 75% { transform: translate(-1px, 1px); } }
 	details { margin-top: 10px; font-size: 13px; } summary { cursor: pointer; opacity: 0.8; }
