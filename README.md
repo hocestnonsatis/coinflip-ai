@@ -1,4 +1,4 @@
-# 🪙🎲 Tiny Models
+# 🪙🎲🎯 Tiny Models
 
 > **Absürt derecede küçük yapay zekâ modelleri.** Trilyon parametre kimin umurunda? Burada modeller avuç içine sığar.
 
@@ -10,6 +10,7 @@
 |---|---|---|---|
 | 🪙 **CoinFlip‑1P** | 1 | %50,0 (SOTA) | [/coin](https://tiny-models.anil-oz.workers.dev/coin) |
 | 🎲 **DiceRoll‑6P** | 6 | %16,7 (SOTA) | [/dice](https://tiny-models.anil-oz.workers.dev/dice) |
+| 🎯 **Tavla‑1.6K** | 1.601 | rastgeleye karşı %99,7 · sezgisel bota karşı %75,3 | [/tavla](https://tiny-models.anil-oz.workers.dev/tavla) |
 | ✊ RockPaperScissors‑3P | 3 | yakında | — |
 | 🎱 Magic8Ball‑20P | 20 | yakında | — |
 
@@ -28,7 +29,16 @@ Her dil kendi adresinde: `/`, `/tr`, `/de`, `/es`, `/fr` (ve `/tr/coin`, `/tr/di
 ### DiceRoll‑6P
 6 Gumbel gürültüsü `g` → `softmax((g + b) · 1,0)` · altı parametre `b` (hepsi 1/6, elle ayarlandı) · `static/model/diceroll-6p.onnx` (`scripts/build-onnx-dice.py`). Sonuç 1–6, güven = softmax maksimumu. Eşit bias'lar sayesinde her yüz tam olarak 1/6 olasılıklı (bkz. `npm test`).
 
-Her iki modelde: 3D sahne (three.js, ahşap masa, lamba ışığı), LLM gibi token token akan yorumlar, sonucu kopyalama, model kartı, 5 dil, `prefers-reduced-motion` desteği.
+### Tavla‑1.6K (gerçekten eğitilmiş!)
+TD‑Gammon tarzı tavla (backgammon) ağı: Tesauro'nun 198 girdili kodlaması → 8 sigmoid gizli nöron → 1 sigmoid çıktı (hamleyi yapan oyuncunun kazanma olasılığı). **1.601 parametre** (198·8 + 8 + 8 + 1), ONNX 6,6 KB.
+
+- **Eğitim:** `train/td.py`, saf numpy, TD(λ=0,7) kendine karşı oyun; 8 farklı ayar paralel 95 dk koşturuldu, seçilen model (α 0,2→0,02) **381.954 oyun** oynadı.
+- **Değerlendirme** (`train/eval.py`, seçimden bağımsız tohumlarla 5.000'er oyun): rastgele oyuncuya karşı **%99,7** (4986/5000), pip sayan sezgisel bota karşı **%75,3** (3766/5000).
+- **Kurallar:** `train/bg.py` (Python) ve `src/lib/tavla-engine.ts` (TS): bar'dan giriş, kırma, toplama, iki zarı da kullanma / büyük zar kuralı, çift zarlar. Katlama küpü yok. TS ve Python 1.500 rastgele pozisyonda birebir aynı yasal hamle kümesini üretir (`npm test`).
+- **Tarayıcıda:** 1 hamle derinlik arama, tüm yasal hamleler tek `session.run` çağrısında puanlanır; ORT yoksa aynı ağırlıklarla TS'e döner. Tıkla‑oyna, yasal hedef vurgusu, canlı kazanma olasılığı çubuğu, akan yorumlar.
+- Yeniden üret: `cd train && python3 td.py d 0.2 0.02 0.7 4 95`, sonra `python3 scripts/build-onnx-tavla.py train/best.npz`.
+
+Coin ve dice'ta: 3D sahne (three.js, ahşap masa, lamba ışığı), LLM gibi token token akan yorumlar, sonucu kopyalama, model kartı, 5 dil, `prefers-reduced-motion` desteği.
 
 ## Teknoloji
 
@@ -56,6 +66,7 @@ python3 scripts/build-onnx.py && python3 scripts/build-onnx-dice.py   # ONNX mod
 
 - 🪙 **CoinFlip‑1P** (`/coin`): 1 parameter, `σ(w · z · 1.5)`, 50.0% accuracy (SOTA). Heads = Yes, Tails = No.
 - 🎲 **DiceRoll‑6P** (`/dice`): 6 parameters (one bias per face, all 1/6), `softmax((g + b) · 1.0)` over Gumbel noise, 16.7% accuracy (SOTA). Answers 1–6; confidence = softmax max; exactly uniform faces (see `npm test`).
+- 🎯 **Tavla‑1.6K** (`/tavla`): a *really trained* TD‑Gammon‑style backgammon net. Tesauro 198‑input encoding → 8 sigmoid hidden → 1 sigmoid (win probability): **1,601 parameters**, 6.6 KB ONNX. Trained by TD(λ=0.7) self‑play in pure numpy (`train/td.py`): 8 configs × 95 min in parallel on CPU, the shipped one played **381,954 games**. Held‑out eval, 5,000 games each: **99.7%** vs a random player, **75.3%** vs a pip‑count heuristic bot. Rules engine in Python (`train/bg.py`) and TS (`src/lib/tavla-engine.ts`), cross‑checked on 1,500 random positions (identical legal move sets); bar entry, hitting, bearing off, must‑use‑both / larger‑die, doubles; no doubling cube. In the browser: 1‑ply search, all legal moves scored in one ONNX `session.run`, TS fallback.
 - ✊ RockPaperScissors‑3P and 🎱 Magic8Ball‑20P: coming soon.
 
 Type an optional question, **hold** the button (or Space / Enter) and release. The hold duration, hashed with crypto‑random jitter, becomes the model input. Each model is a real ONNX file run by ONNX Runtime Web (WebGPU, else WASM), lazy‑loaded from jsDelivr, with a silent TypeScript fallback. Every language has its own URL (`/`, `/tr`, `/de`, `/es`, `/fr`, plus `/coin` and `/dice` under each).

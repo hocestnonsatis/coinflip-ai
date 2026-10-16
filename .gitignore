@@ -10,3 +10,6 @@ dist/
 *.log
 screens/
 .dev.vars*
+train/ck/
+train/logs/
+train/__pycache__/

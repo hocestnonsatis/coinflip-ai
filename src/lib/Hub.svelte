@@ -5,15 +5,19 @@
 	import { HUB, type HubCard } from '#lib/i18n-hub';
 	import { SITE, REPO, pathFor, urlFor, setLangPref } from '#lib/site';
 	import Seo from './Seo.svelte';
+	import { STATS } from '#lib/tavla-stats';
 
 	let { data }: { data: { lang: Lang | null } } = $props();
 	const initialLang = (() => data.lang ?? 'en')();
 	let lang = $state<Lang>(initialLang);
 	const h = $derived(HUB[lang]);
-	type Item = { key: 'coin' | 'dice' | 'rps' | 'ball'; params: number; card: HubCard; href?: string };
+	type Item = { key: 'coin' | 'dice' | 'tavla' | 'rps' | 'ball'; params: number; card: HubCard; href?: string };
+	const pc = $derived(new Intl.NumberFormat(lang, { style: 'percent', maximumFractionDigits: 1 }));
+	const tavlaCard = $derived<HubCard>({ ...h.tavla, stats: h.tavla.stats.map(([k, v]) => [k, v.replace('{r}', pc.format(STATS.vsRandom.w / Math.max(STATS.vsRandom.n, 1))).replace('{h}', pc.format(STATS.vsHeur.w / Math.max(STATS.vsHeur.n, 1))).replace('{kb}', `${(STATS.onnxBytes / 1024).toLocaleString(lang, { maximumFractionDigits: 1 })} KB`)] as [string, string]) });
 	const items = $derived<Item[]>([
 		{ key: 'coin', params: 1, card: h.coin, href: pathFor(lang, 'coin') },
 		{ key: 'dice', params: 6, card: h.dice, href: pathFor(lang, 'dice') },
+		{ key: 'tavla', params: STATS.params, card: tavlaCard, href: pathFor(lang, 'tavla') },
 		{ key: 'rps', params: 3, card: h.rps },
 		{ key: 'ball', params: 20, card: h.ball }
 	]);
@@ -52,6 +56,7 @@
 				<div class="icon" aria-hidden="true">
 					{#if it.key === 'coin'}<div class="coin"><span>1P</span></div>
 					{:else if it.key === 'dice'}<div class="cube">{#each [1, 2, 3, 4, 5, 6] as f (f)}<div class="f f{f}">{#each Array(f) as _, i (i)}<i></i>{/each}</div>{/each}</div>
+					{:else if it.key === 'tavla'}<div class="tavla"><i></i><i></i><i></i><i></i><b></b><b></b></div>
 					{:else if it.key === 'rps'}<div class="hands"><span>✊</span><span>✋</span><span>✌️</span></div>
 					{:else}<div class="ball"><span>8</span></div>{/if}
 				</div>
@@ -121,6 +126,12 @@
 	.f1 { transform: translateZ(28px); } .f6 { transform: rotateY(180deg) translateZ(28px); } .f2 { transform: rotateY(90deg) translateZ(28px); }
 	.f5 { transform: rotateY(-90deg) translateZ(28px); } .f3 { transform: rotateX(90deg) translateZ(28px); } .f4 { transform: rotateX(-90deg) translateZ(28px); }
 	@keyframes tumble { from { transform: rotateX(-20deg) rotateY(0) rotateZ(10deg); } to { transform: rotateX(340deg) rotateY(360deg) rotateZ(370deg); } }
+	.tavla { width: 74px; height: 56px; border-radius: 6px; background: #5a321a; border: 3px solid #2a160a; position: relative; display: flex; justify-content: space-around; overflow: hidden; }
+	.tavla i { width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-top: 26px solid #e9d7ae; }
+	.tavla i:nth-child(even) { border-top-color: #8f2d22; }
+	.tavla b { position: absolute; width: 14px; height: 14px; border-radius: 50%; bottom: 4px; left: 12px; background: radial-gradient(circle at 40% 35%, #fffaf0, #d9c7a0); box-shadow: 0 2px 3px #0008; }
+	.tavla b + b { left: 44px; background: radial-gradient(circle at 40% 35%, #6b2a22, #2a0d09); animation: hop 2.4s ease-in-out infinite; }
+	@keyframes hop { 50% { transform: translate(-16px, -26px); } }
 	.hands { position: relative; width: 70px; height: 70px; font-size: 52px; }
 	.hands span { position: absolute; inset: 0; display: grid; place-items: center; opacity: 0; animation: rps 3s infinite; }
 	.hands span:nth-child(2) { animation-delay: 1s; } .hands span:nth-child(3) { animation-delay: 2s; }
