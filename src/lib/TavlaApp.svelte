@@ -7,6 +7,7 @@
 	import { SITE, REPO, HF_TAVLA, pathFor, urlFor, setLangPref } from '#lib/site';
 	import { start, flip, legalSequences, applyStep, pips, resolveClick, type Board, type Step, type Seq } from '#lib/tavla-engine';
 	import { STATS } from '#lib/tavla-stats';
+	import { rollDie, rollPair, openingRoll } from '#lib/tavla-dice';
 	import type { Backend } from '#lib/engine';
 	import Seo from './Seo.svelte';
 
@@ -34,6 +35,13 @@
 	let lastAi = $state<Step[]>([]);
 	let result = $state<{ human: boolean; gammon: boolean } | null>(null);
 	let reduced = $state(false);
+	let autoRoll = $state(false);
+	function setAuto(v: boolean) { autoRoll = v; try { localStorage.setItem('tavla-autoroll', v ? '1' : '0'); } catch { /* private mode */ } }
+	$effect(() => {
+		if (phase !== 'roll' || !autoRoll || rolling) return;
+		const id = gameId, h = setTimeout(() => { if (id === gameId && phase === 'roll' && autoRoll) humanRoll(); }, reduced ? 150 : 650);
+		return () => clearTimeout(h);
+	});
 	let comment = $state(''), shown = $state(''), streaming = $state(false);
 	let streamId = 0, gameId = 0;
 	const sleep = (ms: number) => new Promise((r) => setTimeout(r, reduced ? Math.min(ms, 60) : ms));
@@ -68,10 +76,9 @@
 	async function rollAnim(n: number, final: number[]) {
 		rolling = true;
 		const end = performance.now() + (reduced ? 0 : 650);
-		while (performance.now() < end) { dice = Array.from({ length: n }, () => 1 + Math.floor(Math.random() * 6)); await sleep(70); }
+		while (performance.now() < end) { dice = Array.from({ length: n }, rollDie); await sleep(70); }
 		dice = final; rolling = false;
 	}
-	const rnd = () => 1 + Math.floor(Math.random() * 6);
 
 	async function newGame() {
 		const id = ++gameId;
@@ -80,7 +87,7 @@
 		say(pick(t.start));
 		await sleep(700); if (id !== gameId) return;
 		let a = 0, b = 0;
-		do { a = rnd(); b = rnd(); await rollAnim(2, [a, b]); if (id !== gameId) return; } while (a === b);
+		for (const [x, y] of openingRoll()) { a = x; b = y; await rollAnim(2, [a, b]); if (id !== gameId) return; }
 		const human = a > b;
 		status = t.opening(a, b, human ? t.you : t.model);
 		await sleep(900); if (id !== gameId) return;
@@ -99,7 +106,7 @@
 	}
 	async function humanRoll() {
 		if (phase !== 'roll' || rolling) return;
-		const d = [rnd(), rnd()];
+		const d = rollPair();
 		await rollAnim(2, d);
 		beginHuman(d);
 	}
@@ -132,7 +139,7 @@
 	}
 	async function aiTurn(d: number[] | null, id: number) {
 		phase = 'ai'; status = t.thinking; sel = null;
-		if (!d) { d = [rnd(), rnd()]; await rollAnim(2, d); if (id !== gameId) return; } else dice = d;
+		if (!d) { d = rollPair(); await rollAnim(2, d); if (id !== gameId) return; } else dice = d;
 		const mb = flip(hb);
 		const mod = ai ?? (ai = await import('#lib/tavla-ai'));
 		const c = await mod.choose(mb, d[0], d[1]);
@@ -182,6 +189,7 @@
 	onMount(() => {
 		const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
 		reduced = mq.matches;
+		try { autoRoll = localStorage.getItem('tavla-autoroll') === '1'; } catch { /* ignore */ }
 		const q = new URLSearchParams(location.search).get('lang') as Lang | null;
 		if (data.lang) lang = data.lang;
 		else if (q && LANGS.some((l) => l.code === q)) { lang = q; localStorage.setItem('lang', q); window.history.replaceState(window.history.state, '', pathFor(q, 'tavla')); }
@@ -200,7 +208,7 @@
 </script>
 
 <Seo {lang} slug="tavla" title={t.title} desc={t.desc} image="/og-tavla.png" {jsonLd} />
-<svelte:window onkeydown={(e) => { if ((e.code === 'Space' || e.code === 'Enter') && phase === 'roll' && (e.target as HTMLElement).tagName !== 'SELECT' && (e.target as HTMLElement).tagName !== 'BUTTON') { e.preventDefault(); humanRoll(); } if ((e.ctrlKey || e.metaKey) && e.key === 'z') undo(); }} />
+<svelte:window onkeydown={(e) => { if ((e.code === 'Space' || e.code === 'Enter') && phase === 'roll' && (e.target as HTMLElement).tagName !== 'SELECT' && (e.target as HTMLElement).tagName !== 'BUTTON') { e.preventDefault(); humanRoll(); } if ((e.ctrlKey || e.metaKey) && e.key === 'z') undo(); if ((e.key === 'r' || e.key === 'R') && !e.ctrlKey && !e.metaKey && (e.target as HTMLElement).tagName !== 'SELECT' && phase === 'roll') humanRoll(); }} />
 
 <div class="tv">
 	<div class="table" aria-hidden="true"></div>
@@ -279,6 +287,7 @@
 					{:else if phase === 'over'}<button class="primary" onclick={newGame}>{t.newGame}</button>
 					{:else if phase === 'move'}<button onclick={undo} disabled={!done.length}>{t.undo}</button>{/if}
 				</div>
+				<label class="auto"><input type="checkbox" checked={autoRoll} onchange={(e) => setAuto(e.currentTarget.checked)} /> {t.autoRoll} <kbd>R</kbd></label>
 				{#if result}<p class="res">{result.human ? t.youWin : t.modelWin}{#if result.gammon} · {t.gammon}{/if}</p>{/if}
 				<div class="comment" aria-live="polite"><span class="who">Tavla‑1.6K:</span> {shown}{#if streaming}<span class="cursor" aria-hidden="true">▍</span>{/if}</div>
 				<div class="stats mono">
@@ -348,6 +357,9 @@
 	button:disabled { opacity: 0.4; cursor: default; }
 	button.primary { width: 100%; padding: 14px; font-size: 17px; font-weight: 800; border: 0; color: #1a1205; background: linear-gradient(180deg, #ffe08a, #e9a23b); box-shadow: 0 8px 30px #ffae3a55, inset 0 1px 0 #fff8; }
 	button.ghost { width: 100%; margin-top: 8px; font-size: 13px; padding: 8px; }
+	.auto { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 8px; font-size: 13px; cursor: pointer; user-select: none; }
+	.auto input { width: 16px; height: 16px; accent-color: #e9a23b; }
+	kbd { font-size: 10px; padding: 1px 5px; border: 1px solid #ffffff33; border-radius: 4px; opacity: 0.6; }
 	.res { text-align: center; font-family: Georgia, serif; font-size: 24px; margin: 8px 0 0; color: #ffd36b; }
 	.comment { margin: 12px 0; min-height: 3.2em; font-size: 14px; font-style: italic; line-height: 1.4; }
 	.who { font-style: normal; font-weight: 700; color: #ffd36b; }

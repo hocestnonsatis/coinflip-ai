@@ -1,7 +1,7 @@
 import type { Lang } from './i18n';
 // Commentary placeholders: {p} = model's own win probability, {h} = your win probability, {n} = candidate moves scored, {ms} = inference ms.
 export type TavlaDict = {
-	title: string; desc: string; pitch: string; you: string; model: string; roll: string; undo: string; newGame: string; thinking: string;
+	title: string; desc: string; pitch: string; autoRoll: string; you: string; model: string; roll: string; undo: string; newGame: string; thinking: string;
 	yourTurn: string; modelTurn: string; pickChecker: string; pickTarget: string; noMove: string; modelNoMove: string; opening: (you: number, m: number, first: string) => string;
 	youWin: string; modelWin: string; gammon: string; winProb: string; pips: string; engineLabel: string; engineTs: string; cardTitle: string; card: (s: CardStats) => [string, string][];
 	loading: string; hint: string; start: string[]; move: string[]; confident: string[]; worried: string[]; hit: string[]; gotHit: string[]; humanNoMove: string[]; aiNoMove: string[];
@@ -10,6 +10,7 @@ export type TavlaDict = {
 export type CardStats = { params: string; games: string; hours: string; vsRandom: string; vsHeur: string; size: string };
 
 const tr: TavlaDict = {
+	autoRoll: 'Otomatik zar at',
 	title: 'Tavla‑1.6K · 1.601 parametreli yapay zekâyla tavla oyna', desc: 'Tarayıcıda 1.601 parametreli gerçek bir sinir ağına karşı tavla (backgammon) oyna. TD‑Gammon tarzı kendi kendine oynayarak eğitildi, ONNX Runtime ile çalışır. Ücretsiz, kurulum yok.',
 	pitch: '1.601 parametre · TD(λ) ile kendine karşı oynayarak öğrendi · gerçek ONNX', you: 'Sen', model: 'Model', roll: 'Zar at 🎲', undo: 'Geri al', newGame: 'Yeni oyun', thinking: 'Model düşünüyor…',
 	yourTurn: 'Sıra sende', modelTurn: 'Sıra modelde', pickChecker: 'Oynatacağın pulu seç', pickTarget: 'Hedef haneyi seç', noMove: 'Oynayacak hamlen yok, sıra geçti.', modelNoMove: 'Modelin oynayacak hamlesi yok.',
@@ -30,6 +31,7 @@ const tr: TavlaDict = {
 	candidates: (n, ms) => `${n} aday hamle tek ONNX çağrısında puanlandı · ${ms} ms`
 };
 const en: TavlaDict = {
+	autoRoll: 'Auto‑roll dice',
 	title: 'Tavla‑1.6K · play backgammon vs a 1,601‑parameter AI', desc: 'Play backgammon (tavla) in your browser against a real 1,601‑parameter neural network, trained TD‑Gammon style by self‑play and run with ONNX Runtime. Free, no install.',
 	pitch: '1,601 parameters · learned by TD(λ) self‑play · real ONNX', you: 'You', model: 'Model', roll: 'Roll dice 🎲', undo: 'Undo', newGame: 'New game', thinking: 'Model is thinking…',
 	yourTurn: 'Your turn', modelTurn: 'Model’s turn', pickChecker: 'Pick a checker to move', pickTarget: 'Pick a target point', noMove: 'No legal move, you pass.', modelNoMove: 'The model has no legal move.',
@@ -50,6 +52,7 @@ const en: TavlaDict = {
 	candidates: (n, ms) => `${n} candidate moves scored in one ONNX call · ${ms} ms`
 };
 const de: TavlaDict = {
+	autoRoll: 'Automatisch würfeln',
 	title: 'Tavla‑1.6K · Backgammon gegen eine KI mit 1.601 Parametern', desc: 'Spiele Backgammon im Browser gegen ein echtes neuronales Netz mit 1.601 Parametern, TD‑Gammon‑artig durch Selbstspiel trainiert, mit ONNX Runtime. Kostenlos, ohne Installation.',
 	pitch: '1.601 Parameter · per TD(λ)-Selbstspiel gelernt · echtes ONNX', you: 'Du', model: 'Modell', roll: 'Würfeln 🎲', undo: 'Rückgängig', newGame: 'Neues Spiel', thinking: 'Modell denkt…',
 	yourTurn: 'Du bist dran', modelTurn: 'Modell ist dran', pickChecker: 'Wähle einen Stein', pickTarget: 'Wähle ein Zielfeld', noMove: 'Kein legaler Zug, du setzt aus.', modelNoMove: 'Das Modell hat keinen legalen Zug.',
@@ -70,6 +73,7 @@ const de: TavlaDict = {
 	candidates: (n, ms) => `${n} Kandidatenzüge in einem ONNX‑Aufruf bewertet · ${ms} ms`
 };
 const es: TavlaDict = {
+	autoRoll: 'Tirar dados automáticamente',
 	title: 'Tavla‑1.6K · juega al backgammon contra una IA de 1.601 parámetros', desc: 'Juega al backgammon en tu navegador contra una red neuronal real de 1.601 parámetros, entrenada al estilo TD‑Gammon jugando contra sí misma, con ONNX Runtime. Gratis, sin instalar nada.',
 	pitch: '1.601 parámetros · aprendió con TD(λ) jugando contra sí misma · ONNX real', you: 'Tú', model: 'Modelo', roll: 'Tirar dados 🎲', undo: 'Deshacer', newGame: 'Nueva partida', thinking: 'El modelo piensa…',
 	yourTurn: 'Tu turno', modelTurn: 'Turno del modelo', pickChecker: 'Elige una ficha', pickTarget: 'Elige un destino', noMove: 'No tienes jugada legal, pasas.', modelNoMove: 'El modelo no tiene jugada legal.',
@@ -90,6 +94,7 @@ const es: TavlaDict = {
 	candidates: (n, ms) => `${n} jugadas candidatas puntuadas en una llamada ONNX · ${ms} ms`
 };
 const fr: TavlaDict = {
+	autoRoll: 'Lancer les dés automatiquement',
 	title: 'Tavla‑1.6K · jouez au backgammon contre une IA à 1 601 paramètres', desc: 'Jouez au backgammon dans votre navigateur contre un vrai réseau de neurones à 1 601 paramètres, entraîné façon TD‑Gammon en jouant contre lui‑même, avec ONNX Runtime. Gratuit, sans installation.',
 	pitch: '1 601 paramètres · appris par TD(λ) en jouant contre lui‑même · vrai ONNX', you: 'Vous', model: 'Modèle', roll: 'Lancer les dés 🎲', undo: 'Annuler', newGame: 'Nouvelle partie', thinking: 'Le modèle réfléchit…',
 	yourTurn: 'À vous', modelTurn: 'Au modèle', pickChecker: 'Choisissez un pion', pickTarget: 'Choisissez une case', noMove: 'Aucun coup légal, vous passez.', modelNoMove: 'Le modèle n’a aucun coup légal.',
