@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { replaceState } from '$app/navigation';
 	import { infer, WEIGHT, BITS, SCALE, type Side } from '#lib/model';
-	import { DICTS, LANGS, detectLang, type Lang } from '#lib/i18n';
+	import { DICTS, LANGS, type Lang } from '#lib/i18n';
 	import type { CoinScene } from '#lib/scene';
 	import type { Backend } from '#lib/engine';
 
@@ -105,7 +105,8 @@
 		const q = new URLSearchParams(location.search).get('lang') as Lang | null;
 		if (data.lang) lang = data.lang;
 		else if (q && LANGS.some((l) => l.code === q)) { lang = q; localStorage.setItem('lang', q); window.history.replaceState(window.history.state, '', q === 'en' ? '/' : `/${q}`); }
-		else lang = detectLang();
+		// on "/" without a preference the page stays English; language redirects happen before render
+		// (server: cookie/Accept-Language → 302, inline script: saved localStorage choice)
 		const onMq = () => (reduced = mq.matches);
 		mq.addEventListener('change', onMq);
 		let cancelled = false;
@@ -132,7 +133,7 @@
 		document.documentElement.lang = lang;
 		scene?.setFaces(t.heads, t.tails, t.coinLegend, t.edgeLegend);
 	});
-	function setLang(l: Lang) { lang = l; localStorage.setItem('lang', l); try { replaceState(l === 'en' ? '/' : `/${l}`, {}); } catch { /* router not ready */ } }
+	function setLang(l: Lang) { lang = l; localStorage.setItem('lang', l); document.cookie = `lang=${l}; path=/; max-age=31536000; samesite=lax`; try { replaceState(l === 'en' ? '/' : `/${l}`, {}); } catch { /* router not ready */ } }
 
 	const HOLD_CAP = 3000;
 	let holding = $state(false);
