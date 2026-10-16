@@ -3,6 +3,7 @@
 	import { infer, WEIGHT, BITS, type Side } from '#lib/model';
 	import { DICTS, LANGS, detectLang, type Lang } from '#lib/i18n';
 	import type { CoinScene } from '#lib/scene';
+	import type { Backend } from '#lib/engine';
 
 	type Phase = 'loading' | 'ready' | 'thinking' | 'flipping' | 'done';
 	let canvas: HTMLCanvasElement;
@@ -26,6 +27,8 @@
 	let oracleShown = $state('');
 	let streaming = $state(false);
 	let streamId = 0;
+	let engine = $state<Backend | 'loading'>('loading');
+	let engineMod: typeof import('#lib/engine') | undefined;
 	let copyFeedback = $state<'idle' | 'ok' | 'fail'>('idle');
 	let copyTimer = 0;
 	const tokenize = (text: string) => (text.match(/\S+\s*|\s+/g) ?? []).flatMap((w) => (w.length > 6 ? w.match(/.{1,4}/gsu) ?? [w] : [w]));
@@ -77,6 +80,7 @@
 
 	const count = (k: Side) => history.filter((h) => h === k).length;
 	const busy = $derived(phase === 'thinking' || phase === 'flipping' || phase === 'loading');
+	const engineName = (e: Backend | 'loading') => e === 'webgpu' ? 'ONNX Runtime · WebGPU' : e === 'wasm' ? 'ONNX Runtime · WASM' : e === 'loading' ? '…' : t.engineTs;
 	const label = (s: Side) => (s === 'yazi' ? t.heads : s === 'tura' ? t.tails : t.edge);
 	const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 	const push = (l: string) => (log = [...log.slice(-4), l]);
@@ -99,6 +103,10 @@
 			for (let i = 0; i <= 4; i++) { loadPct = i * 25; await sleep(reduced ? 30 : 260); }
 			push(`▸ w = 0.4271 · ${t.weightsPlain}`);
 			phase = 'ready';
+			// lazy: ORT loads after first paint/ready, never blocks the UI
+			await new Promise((r) => ('requestIdleCallback' in window ? requestIdleCallback(r, { timeout: 2000 }) : setTimeout(r, 300)));
+			try { engineMod = await import('#lib/engine'); engine = await engineMod.loadEngine(); } catch { engine = 'ts'; }
+			if (!cancelled && engine !== 'ts') push(`▸ ${t.engineLabel}: ${engineName(engine)}`);
 		})();
 		return () => { cancelled = true; mq.removeEventListener('change', onMq); scene?.destroy(); };
 	});
@@ -142,10 +150,18 @@
 		clearTimeout(copyTimer); copyFeedback = 'idle';
 		legendary = false;
 		const power = Math.min(holdMs, HOLD_CAP) / HOLD_CAP;
-		const t0 = performance.now();
-		for (let i = 0; i < 2000; i++) infer(holdMs + i * 1e-3); // "benchmark"
-		const ms = Math.max((performance.now() - t0) / 2000, 0.0001);
+		phase = 'thinking';
+		let ms = engineMod ? await engineMod.bench(8) : null; // real ORT session.run timing
+		if (ms === null) {
+			const t0 = performance.now();
+			for (let i = 0; i < 2000; i++) infer(holdMs + i * 1e-3); // "benchmark"
+			ms = Math.max((performance.now() - t0) / 2000, 0.0001);
+		}
 		const out = infer(holdMs);
+		if (engineMod && engine !== 'ts' && engine !== 'loading' && out.trit !== 0) {
+			out.p = await engineMod.runP(out.z); // p from ONNX Runtime; edge band stays in TS
+			out.confidence = Math.max(out.p, 1 - out.p);
+		}
 		push(t.quips[Math.floor(Math.random() * t.quips.length)]);
 		if (holdMs > HOLD_CAP) push(`⚡ ${t.overcharge}`);
 		push(`▸ ${t.holdLog(num(holdMs))} → z=${num(out.z)}` + (out.result === 'dik' || revealed ? ` · τ=${num(out.tau, 5)} → trit=${out.trit > 0 ? '+1' : out.trit}` : ` → σ(w·z·10)=${num(out.p, 4)}`));
@@ -223,6 +239,7 @@
 				<div><small>{t.stats[3]}</small><b>{last ? num(last.z * 10, 2) : '—'}</b></div>
 			{/if}
 		</div>
+		<p class="engine mono" title="onnxruntime-web">{t.engineLabel}: {engineName(engine)}</p>
 		<div class="log mono">{#each log as l, i (i + l)}<div>{l}</div>{/each}</div>
 		<form class="ask" onsubmit={(e) => e.preventDefault()}>
 			<p class="pitch">{t.pitch}</p>
@@ -274,6 +291,7 @@
 	.panel { justify-self: center; width: min(560px, 100%); box-sizing: border-box; background: #0c0c16b3; border: 1px solid #ffffff1a; border-radius: 18px; padding: 14px; backdrop-filter: blur(14px); box-shadow: 0 20px 60px #0008; }
 	.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; text-align: center; }
 	.stats small { display: block; font-size: 10px; opacity: 0.55; text-transform: uppercase; }
+	.engine { margin: 6px 0 0; text-align: center; font-size: 10px; letter-spacing: 0.04em; opacity: 0.5; }
 	.stats b { font-size: 14px; }
 	.log { font-size: 11px; opacity: 0.7; margin: 10px 0; min-height: 3.6em; line-height: 1.2em; }
 	.log div:last-child { color: #ffd36b; }
