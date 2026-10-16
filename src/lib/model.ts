@@ -11,6 +11,8 @@ export function cryptoNormal(): number {
 	const a = cryptoUniform(), b = cryptoUniform();
 	return Math.sqrt(-2 * Math.log(a)) * Math.cos(2 * Math.PI * b); // Box–Muller
 }
+/** Logit scale: σ(w·z·1.5) → typical confidence ≈55–92% (p10–p90 for z~𝒩(0,1)). */
+export const SCALE = 1.5;
 export const sigmoid = (x: number) => 1 / (1 + Math.exp(-x));
 
 // Inverse standard normal CDF (Acklam's approximation)
@@ -52,7 +54,7 @@ export function infer(holdMs: number) {
 	const z = probit(u);
 	const a = WEIGHT * z;
 	const trit: Trit = Math.abs(a) < tau ? 0 : a > 0 ? 1 : -1;
-	const p = sigmoid(a * 10);
+	const p = sigmoid(a * SCALE);
 	const confidence = trit === 0 ? 1 - Math.abs(a) / tau : Math.max(p, 1 - p);
 	const result: Side = trit === 1 ? 'yazi' : trit === -1 ? 'tura' : 'dik';
 	return { u, z, a, p, tau, trit, pEdge, result, confidence };

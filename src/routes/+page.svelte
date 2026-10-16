@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { infer, WEIGHT, BITS, type Side } from '#lib/model';
+	import { infer, WEIGHT, BITS, SCALE, type Side } from '#lib/model';
 	import { DICTS, LANGS, detectLang, type Lang } from '#lib/i18n';
 	import type { CoinScene } from '#lib/scene';
 	import type { Backend } from '#lib/engine';
@@ -151,11 +151,11 @@
 		legendary = false;
 		const power = Math.min(holdMs, HOLD_CAP) / HOLD_CAP;
 		phase = 'thinking';
-		let ms = engineMod ? await engineMod.bench(8) : null; // real ORT session.run timing
-		if (ms === null) {
-			const t0 = performance.now();
-			for (let i = 0; i < 2000; i++) infer(holdMs + i * 1e-3); // "benchmark"
-			ms = Math.max((performance.now() - t0) / 2000, 0.0001);
+		let ms = engineMod ? await engineMod.bench() : null; // real ORT session.run timing
+		if (ms === null) { // TS fallback: batch so values aren't quantized by coarse timers
+			const t0 = performance.now(); let i = 0, el = 0;
+			do { for (let k = 0; k < 500; k++) infer(holdMs + (i * 500 + k) * 1e-3); i++; el = performance.now() - t0; } while (el < 50 && i < 200);
+			ms = Math.max(el / (i * 500), 1e-6);
 		}
 		const out = infer(holdMs);
 		if (engineMod && engine !== 'ts' && engine !== 'loading' && out.trit !== 0) {
@@ -164,7 +164,7 @@
 		}
 		push(t.quips[Math.floor(Math.random() * t.quips.length)]);
 		if (holdMs > HOLD_CAP) push(`⚡ ${t.overcharge}`);
-		push(`▸ ${t.holdLog(num(holdMs))} → z=${num(out.z)}` + (out.result === 'dik' || revealed ? ` · τ=${num(out.tau, 5)} → trit=${out.trit > 0 ? '+1' : out.trit}` : ` → σ(w·z·10)=${num(out.p, 4)}`));
+		push(`▸ ${t.holdLog(num(holdMs))} → z=${num(out.z)}` + (out.result === 'dik' || revealed ? ` · τ=${num(out.tau, 5)} → trit=${out.trit > 0 ? '+1' : out.trit}` : ` → σ(w·z·1.5)=${num(out.p, 4)}`));
 		phase = 'flipping';
 		const finish = () => {
 			last = { result: out.result, confidence: out.confidence, z: out.z, trit: out.trit, ms, tps: Math.round(1000 / ms) };
@@ -236,7 +236,7 @@
 				<div><small>trit</small><b>{last ? (last.trit > 0 ? '+1' : last.trit) : '—'}</b></div>
 			{:else}
 				<div><small>{t.stats[2]}</small><b>{count('yazi')} / {count('tura')}</b></div>
-				<div><small>{t.stats[3]}</small><b>{last ? num(last.z * 10, 2) : '—'}</b></div>
+				<div><small>{t.stats[3]}</small><b>{last ? num(last.z * SCALE, 2) : '—'}</b></div>
 			{/if}
 		</div>
 		<p class="engine mono" title="onnxruntime-web">{t.engineLabel}: {engineName(engine)}</p>
