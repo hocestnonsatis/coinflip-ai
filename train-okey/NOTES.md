@@ -30,3 +30,8 @@ Steps (tick when done; each step leaves files on disk):
 - Inks (src/lib/okey-ink.ts, shared 3D + 2D): red #c8102e, yellow/ochre #b87a00, blue #0047d6, black #121212. WCAG contrast on ivory 4.90 / 3.00 / 6.09 / 15.59; ΔE76 RY 58, RB 116, RK 84, YB 143, YK 82, BK 92 (test enforces ≥3 and ≥45 and CSS sync).
 - Numerals font 900 + same-colour stroke; colour-blind symbol under the number: red ◆, yellow ▲, blue ■, black ●.
 - Screens: screens/okey-light-{before,after}-{desktop,mobile}{,-rack}.png, okey-light-after-2d.png. Layout audit OK on prod.
+
+## 2026-10-17 selection/highlight pass (worker be6167af)
+- Tile materials are static (no emissive anywhere on side/face/back). Highlights = unlit, non-tone-mapped rounded ring just outside the tile outline, 0.012 behind the face plane (own + neighbour faces win the depth test). Selection green + chevron (above on top row, below in the lift gap on bottom row), set colours, okey gold. Lift 0.28 → 0.2.
+- 2D: .set background tint removed → blue border; sel lift 8 → 6 px; test enforces highlight CSS has no background/color/filter/opacity/stroke.
+- scripts/cdp-okey-select.mjs + okey-select-de.py: highlight-only ΔE76 (same pose, frames on vs hidden) = 0.00 on ink and face for selected / in-set / okey frame / selected okey, desktop + mobile, prod. Plain → selected (includes the 0.2 lift re-raster) 0.7–1.6 ink, ≤0.5 face.

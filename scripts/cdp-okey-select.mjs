@@ -44,6 +44,8 @@ for (const [name, W, H] of [['desktop', 1920, 1080], ['mobile', 390, 844]]) {
 	st.push(await shot('setA', `s.update({ ...window.__base, sets: new Map([[${ids.A}, 1]]) }, false)`));
 	st.push(await shot('selO', `s.update({ ...window.__base, sel: ${ids.O} }, false)`));
 	st.push(await shot('noframe', `s.update(window.__base, false); s.hideFrames()`));
+	st.push(await shot('selAbare', `s.update({ ...window.__base, sel: ${ids.A} }, false); s.hideFrames()`));
+	st.push(await shot('selObare', `s.update({ ...window.__base, sel: ${ids.O} }, false); s.hideFrames()`));
 	samples.push({ name, dpr: name === 'mobile' ? 3 : 1, ...ids, states: st });
 	console.log('saved', `${out}-${name}.png`, `${out}-${name}-rack.png`);
 	ch.kill(); await sleep(300);
