@@ -426,15 +426,17 @@
 	details a { color: #ffd36b; }
 	details ul { padding-left: 18px; margin: 8px 0 0; line-height: 1.5; opacity: 0.85; }
 	/* tiles (2D fallback + chips) */
-	.tl { display: inline-grid; place-items: center; width: 30px; height: 42px; border-radius: 5px; background: linear-gradient(180deg, #fbf6e6, #e2d6b6); font: 900 19px Georgia, serif; box-shadow: 0 2px 4px #0008, inset 0 -2px 0 #0002; user-select: none; vertical-align: middle; }
+	.tl { display: inline-grid; place-items: center; width: 30px; height: 42px; border-radius: 5px; background: linear-gradient(180deg, #f6f0de, #e9e0c8); font: 900 19px Georgia, serif; -webkit-text-stroke: 0.6px currentColor; box-shadow: 0 2px 4px #0008, inset 0 -2px 0 #0002; user-select: none; vertical-align: middle; }
 	.tl.sm { width: 22px; height: 30px; font-size: 15px; border-radius: 4px; }
-	.c0 { color: #c4212b; } .c1 { color: #c98a00; } .c2 { color: #1f5fbf; } .c3 { color: #1a1a1a; } .fj { color: #1d6b3a; }
+	/* ink palette = okey-ink.ts INK (tests check they match) */
+	.c0 { color: #c8102e; } .c1 { color: #b87a00; } .c2 { color: #0047d6; } .c3 { color: #121212; } .fj { color: #1d6b3a; }
 	.tl.okey { box-shadow: 0 0 0 2px #ffb000, 0 2px 4px #0008; }
 	.tl.sel { transform: translateY(-8px); box-shadow: 0 0 0 3px #36e27e, 0 6px 10px #000a; }
 	.tl.set { background: linear-gradient(180deg, #f2fff4, #cdeccf); }
 	/* rack tiles carry the ink dot under the number like real tiles, so an upside-down okey 6 / 9 stays unambiguous */
 	.rack2d .tl { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1; }
-	.rack2d .tl:not(.fj)::after { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; margin-top: 3px; }
+	.rack2d .tl:not(.fj)::after { content: ''; width: 6px; height: 6px; background: currentColor; margin-top: 3px; } /* colour-blind hint: red ◆, yellow ▲, blue ■, black ● */
+	.rack2d .tl.c0::after { transform: rotate(45deg) scale(0.85); } .rack2d .tl.c1::after { clip-path: polygon(50% 0, 100% 100%, 0 100%); width: 7px; } .rack2d .tl.c3::after { border-radius: 50%; }
 	/* real okeys in the rack are turned upside down (as at a real table) with a gold rim; false jokers stay upright */
 	.rack2d .tl.okey { transform: rotate(180deg); box-shadow: 0 0 0 2px #ffb000, 0 0 10px #ffb00088, 0 -2px 4px #0008; }
 	.rack2d .tl.okey.sel { transform: rotate(180deg) translateY(8px); box-shadow: 0 0 0 3px #36e27e, 0 0 10px #ffb00088; }

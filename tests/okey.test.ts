@@ -102,3 +102,20 @@ import { counts as cnt, cover as cov2, ttype as tt } from '../src/lib/okey-engin
 	rk = remove(rk, 9); assert.equal(rk.filter((x) => x !== null).length, 1);
 	void tt; console.log(`okey rack ok (${checked} arranged sets verified)`);
 }
+
+// ink legibility: WCAG contrast on ivory ≥ 3 for every ink, CIELAB ΔE76 ≥ 45 for every pair, 2D CSS uses the same inks
+import { INK, IVORY } from '../src/lib/okey-ink.ts';
+{
+	const rgb = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
+	const lin = (c: number) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+	const lum = (h: string) => { const [r, g, b] = rgb(h).map(lin); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+	const contrast = (a: string, b: string) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+	const lab = (h: string) => { const [r, g, b] = rgb(h).map(lin); const X = (0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047, Y = 0.2126 * r + 0.7152 * g + 0.0722 * b, Z = (0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883;
+		const f = (t: number) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116); return [116 * f(Y) - 16, 500 * (f(X) - f(Y)), 200 * (f(Y) - f(Z))]; };
+	const dE = (a: string, b: string) => Math.hypot(...lab(a).map((v, i) => v - lab(b)[i]));
+	const cr = INK.map((c) => contrast(c, IVORY)); cr.forEach((c, i) => assert.ok(c >= 3, `ink ${i} contrast ${c.toFixed(2)}`));
+	const pairs: string[] = []; for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) { const d = dE(INK[i], INK[j]); assert.ok(d >= 45, `ΔE ${i}-${j} ${d.toFixed(1)}`); pairs.push(`${'RYBK'[i]}${'RYBK'[j]} ${d.toFixed(0)}`); }
+	const css = readFileSync(new URL('../src/lib/OkeyApp.svelte', import.meta.url), 'utf8');
+	INK.forEach((c, i) => assert.ok(css.includes(`.c${i} { color: ${c}; }`), `2D CSS ink ${i} out of sync`));
+	console.log(`okey inks: contrast on ivory ${cr.map((c) => c.toFixed(2)).join(' / ')} (R/Y/B/K) · ΔE ${pairs.join(', ')}`);
+}

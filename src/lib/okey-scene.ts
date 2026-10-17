@@ -21,17 +21,26 @@ export type View = {
 	sel: number | null; sets: Map<number, number>; // tile id → set index (highlight)
 	zones: Record<Zone, boolean>; reveal: boolean; names: string[]; // names[1..3] for the bots
 };
-export const INK = ['#c4212b', '#c98a00', '#1f5fbf', '#1a1a1a'];
+import { INK, IVORY } from './okey-ink';
+export { INK };
 const SET_TINT = ['#36e27e', '#4ab8ff', '#ff9a3a', '#d070ff', '#ffd84a'];
 
 function faceTex(t: number) {
 	const w = 128, h = 176, c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d')!;
-	const grd = g.createLinearGradient(0, 0, 0, h); grd.addColorStop(0, '#fbf6e6'); grd.addColorStop(1, '#e9dfc4'); g.fillStyle = grd; g.fillRect(0, 0, w, h);
+	g.fillStyle = IVORY; g.fillRect(0, 0, w, h); // flat matte ivory (no baked gradient: the lamp already shades it)
 	g.textAlign = 'center'; g.textBaseline = 'middle';
 	if (t === FJ) { g.fillStyle = '#1d6b3a'; g.font = '900 96px Georgia, serif'; g.fillText('★', w / 2, h * 0.46); g.font = '700 22px system-ui, sans-serif'; g.fillText('OKEY', w / 2, h * 0.82); }
 	else {
-		g.fillStyle = INK[tcol(t)]; g.font = `900 ${tval(t) >= 10 ? 80 : 92}px Georgia, serif`; g.fillText(String(tval(t)), w / 2, h * 0.42);
-		g.beginPath(); g.arc(w / 2, h * 0.78, 11, 0, Math.PI * 2); g.fill();
+		// thicker numerals: fill + same-colour stroke; colour-blind hint under the number: red ◆, yellow ▲, blue ■, black ●
+		const col = tcol(t), txt = String(tval(t));
+		g.fillStyle = g.strokeStyle = INK[col]; g.lineJoin = 'round'; g.lineWidth = 5; g.font = `900 ${tval(t) >= 10 ? 78 : 92}px Georgia, serif`;
+		g.strokeText(txt, w / 2, h * 0.42); g.fillText(txt, w / 2, h * 0.42);
+		const cx = w / 2, cy = h * 0.79, r = 12; g.beginPath();
+		if (col === 0) { g.moveTo(cx, cy - r * 1.15); g.lineTo(cx + r, cy); g.lineTo(cx, cy + r * 1.15); g.lineTo(cx - r, cy); }
+		else if (col === 1) { g.moveTo(cx, cy - r * 1.1); g.lineTo(cx + r * 1.15, cy + r * 0.85); g.lineTo(cx - r * 1.15, cy + r * 0.85); }
+		else if (col === 2) g.rect(cx - r * 0.9, cy - r * 0.9, r * 1.8, r * 1.8);
+		else g.arc(cx, cy, r * 0.95, 0, Math.PI * 2);
+		g.closePath(); g.fill();
 	}
 	const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8; return tex;
 }
@@ -49,16 +58,18 @@ function labelTex(text: string, active: boolean) {
 
 export function createOkeyScene(canvas: HTMLCanvasElement, opts: { onTile: (id: number) => void; onSlot: (slot: number) => void; onZone: (z: Zone) => void; onDrop: (id: number, to: { slot: number } | { zone: Zone }) => void; reducedMotion: () => boolean }) {
 	const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-	renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 0.85;
+	renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 0.78;
 	renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
 	const scene = new THREE.Scene();
 	scene.background = new THREE.Color('#050403'); scene.fog = new THREE.Fog('#050403', 22, 48);
 	const pmrem = new THREE.PMREMGenerator(renderer);
 	scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture; scene.environmentIntensity = 0.25;
 	const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 120);
-	const key = new THREE.SpotLight('#ffc98a', 420, 60, Math.PI / 4.2, 0.6, 1.4);
+	const key = new THREE.SpotLight('#ffd9a8', 130, 60, Math.PI / 3.4, 0.95, 1.2); // softer hotspot, wide falloff (legibility)
 	key.position.set(1, 20, 4); key.castShadow = true; key.shadow.mapSize.set(2048, 2048); key.shadow.bias = -0.0003; key.shadow.camera.near = 8; key.shadow.camera.far = 40;
-	scene.add(key, key.target, new THREE.HemisphereLight('#4a3624', '#0a0604', 0.5));
+	scene.add(key, key.target, new THREE.HemisphereLight('#5a4630', '#0a0604', 0.75));
+	// even, low fill from behind the camera onto the human rack (keeps inks readable at the table edge)
+	const fill = new THREE.SpotLight('#fff1dc', 16, 40, 0.42, 0.85, 1); fill.position.set(0, 9, 16); fill.target.position.set(0, 0.6, 6.2); scene.add(fill, fill.target); // cone on the rack only, so the floor stays dark
 	const bounce = new THREE.PointLight('#ff9a50', 8, 22); bounce.position.set(-7, 2, 7); scene.add(bounce);
 
 	const wood = woodTextures(); wood.color.repeat.set(4, 4); wood.bump.repeat.set(4, 4);
@@ -101,9 +112,9 @@ export function createOkeyScene(canvas: HTMLCanvasElement, opts: { onTile: (id: 
 	const tileGeo = new RoundedBoxGeometry(TW, TH, TD, 2, 0.06);
 	const faces = Array.from({ length: 53 }, (_, t) => faceTex(t)), back = backTex();
 	const tiles = Array.from({ length: 106 }, (_, id) => {
-		const side = new THREE.MeshPhysicalMaterial({ color: '#d6cbb0', roughness: 0.5, clearcoat: 0.25, emissive: new THREE.Color('#000'), emissiveIntensity: 0.6 });
-		const face = new THREE.MeshPhysicalMaterial({ map: faces[ttype(id)], color: '#e8e2d2', roughness: 0.4, clearcoat: 0.35, emissive: new THREE.Color('#000'), emissiveIntensity: 0.6 });
-		const bk = new THREE.MeshPhysicalMaterial({ map: back, color: '#cfc4a8', roughness: 0.5, clearcoat: 0.2 });
+		const side = new THREE.MeshPhysicalMaterial({ color: '#d9cfb6', roughness: 0.78, clearcoat: 0, emissive: new THREE.Color('#000'), emissiveIntensity: 0.6 });
+		const face = new THREE.MeshPhysicalMaterial({ map: faces[ttype(id)], color: '#ece6d8', roughness: 0.8, clearcoat: 0, specularIntensity: 0.35, emissive: new THREE.Color('#000'), emissiveIntensity: 0.6 });
+		const bk = new THREE.MeshPhysicalMaterial({ map: back, color: '#cfc4a8', roughness: 0.8, clearcoat: 0 });
 		const m = new THREE.Mesh(tileGeo, [side, side, side, side, face, bk]); m.castShadow = true; m.receiveShadow = true; m.userData.id = id; m.visible = false;
 		m.rotation.order = 'YXZ'; scene.add(m); return m;
 	});
@@ -167,7 +178,7 @@ export function createOkeyScene(canvas: HTMLCanvasElement, opts: { onTile: (id: 
 			face.emissive.set(c ?? '#000'); face.emissiveIntensity = c ? (id === v.sel ? 0.12 : 0.05) : 0;
 		}
 		for (const z of Object.keys(zones) as Zone[]) (zones[z].material as THREE.MeshStandardMaterial).emissiveIntensity = v.zones[z] ? 0.55 : 0.0;
-		strips.forEach((s, i) => ((s.material as THREE.MeshStandardMaterial).emissiveIntensity = v.turn === i ? 2.2 : 0));
+		strips.forEach((s, i) => ((s.material as THREE.MeshStandardMaterial).emissiveIntensity = v.turn === i ? 4.5 : 0));
 		labels.forEach((sp, j) => { const s = j + 1, lr = v.reveal ? 7.9 : 5.6; sp.position.set(Math.sin(seatRot[s]) * lr, v.reveal ? 1.9 : 1.6, Math.cos(seatRot[s]) * lr);
 			const txt = `${v.names[s]} · ${v.opp[j].length}`, st = `${txt}|${v.turn === s}`; if (labelState[s] !== st) { labelState[s] = st; const mat = sp.material as THREE.SpriteMaterial; mat.map?.dispose(); mat.map = labelTex(txt, v.turn === s); mat.needsUpdate = true; } });
 		invalidate();
@@ -203,7 +214,7 @@ export function createOkeyScene(canvas: HTMLCanvasElement, opts: { onTile: (id: 
 	}
 	const composer = new EffectComposer(renderer);
 	composer.addPass(new RenderPass(scene, camera));
-	composer.addPass(new UnrealBloomPass(new THREE.Vector2(1, 1), 0.12, 0.4, 0.92));
+	composer.addPass(new UnrealBloomPass(new THREE.Vector2(1, 1), 0.08, 0.4, 2.6)); // HDR threshold above the brightest lit tile: tiles never bloom, only the hot turn strips
 	const vignette = new ShaderPass(VignetteShader); vignette.uniforms.strength.value = 1.0; composer.addPass(vignette);
 	composer.addPass(new OutputPass());
 	let curPr = 0, raf = 0, dirty = true;
