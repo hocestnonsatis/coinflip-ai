@@ -7,6 +7,7 @@
 	import { SITE, REPO, HF_TAVLA, pathFor, urlFor, setLangPref } from '#lib/site';
 	import { start, flip, legalSequences, applyStep, pips, resolveClick, type Board, type Step, type Seq } from '#lib/tavla-engine';
 	import { STATS } from '#lib/tavla-stats';
+	import { TAVLA_STATS, leader } from '#lib/i18n-tavla-stats';
 	import { rollDie, rollPair, openingRoll } from '#lib/tavla-dice';
 	import type { Backend } from '#lib/engine';
 	import type { TavlaScene } from '#lib/tavla-scene';
@@ -53,6 +54,33 @@
 		const id = gameId, h = setTimeout(() => { if (id === gameId && phase === 'roll' && autoRoll) humanRoll(); }, reduced ? 150 : 650);
 		return () => clearTimeout(h);
 	});
+	// ---- global all-time counter (/api/tavla/*). Every call is best-effort: if the API is down the badge just stays hidden.
+	type Counts = { games: number; human: number; model: number; humanGammons: number; modelGammons: number };
+	let gstats = $state<Counts | null>(null), counted = $state(false), turns = 0;
+	let ticket: { game: number; p: Promise<string | null> } | null = null;
+	const ts = $derived(TAVLA_STATS[lang]);
+	const isCounts = (v: unknown): v is Counts => !!v && typeof (v as Counts).games === 'number';
+	async function api(path: string, body?: unknown): Promise<{ ok: boolean; v: unknown }> {
+		try {
+			const r = await fetch(`/api/tavla/${path}`, body === undefined ? {} : { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+			return { ok: r.ok, v: await r.json() };
+		} catch { return { ok: false, v: null }; }
+	}
+	const loadStats = async () => { const { v } = await api('stats'); if (isCounts(v)) gstats = v; };
+	function openTicket(game: number) {
+		turns = 0; counted = false;
+		ticket = { game, p: api('start', {}).then(({ ok, v }) => (ok ? ((v as { gameId?: string }).gameId ?? null) : null)) };
+		if (gstats) loadStats();
+	}
+	async function report(human: boolean, gammon: boolean) {
+		const tk = ticket; ticket = null;
+		if (!tk || tk.game !== gameId) return; // test-hook (?pos=) games never got a ticket
+		const gid = await tk.p; if (!gid) return;
+		const { ok, v } = await api('result', { winner: human ? 'human' : 'model', gammon, moves: turns, gameId: gid });
+		if (ok && isCounts(v)) { gstats = v; counted = true; } else loadStats();
+	}
+	const lead = $derived(gstats ? leader(gstats) : 'empty');
+	const leadLine = $derived(gstats && lead !== 'empty' ? ts[lead][gstats.games % ts[lead].length] : ts.empty);
 	let comment = $state(''), shown = $state(''), streaming = $state(false);
 	let streamId = 0, gameId = 0;
 	const sleep = (ms: number) => new Promise((r) => setTimeout(r, reduced ? Math.min(ms, 60) : ms));
@@ -93,7 +121,7 @@
 	}
 
 	async function newGame() {
-		const id = ++gameId;
+		const id = ++gameId; openTicket(id);
 		hb = start(); done = []; history = []; sel = null; seqs = []; lastAi = []; result = null; winP = 0.5; info = '';
 		phase = 'opening'; status = '';
 		say(pick(t.start));
@@ -108,7 +136,7 @@
 	function beginHuman(d: number[]) {
 		dice = d; seqs = legalSequences(hb, d[0], d[1]); done = []; history = []; sel = null;
 		if (!seqs.length || seqs[0].steps.length === 0) {
-			phase = 'ai'; status = t.noMove; say(pick(t.humanNoMove));
+			phase = 'ai'; status = t.noMove; say(pick(t.humanNoMove)); turns++;
 			const id = gameId; setTimeout(() => { if (id === gameId) aiTurn(null, id); }, reduced ? 200 : 1600);
 			return;
 		}
@@ -144,7 +172,7 @@
 		hb = history[history.length - 1]; history = history.slice(0, -1); done = done.slice(0, -1); sel = null; status = t.pickChecker;
 	}
 	async function commitHuman() {
-		const id = gameId;
+		const id = gameId; turns++;
 		phase = 'ai'; seqs = []; done = [];
 		if (hb[26] === 15) { finish(true); return; }
 		if (ai) { const v = await ai.evaluate([hb]); winP = v[0]; }
@@ -168,7 +196,7 @@
 			if (s3) { animating = true; try { await s3.move(hb, after, s[0] === 24 ? 25 : 23 - s[0], s[1] === -1 ? 27 : 23 - s[1], false); } finally { animating = false; } if (id !== gameId) return; }
 			cur = next; hb = after; lastAi = [...lastAi, s];
 		}
-		winP = 1 - c.p;
+		winP = 1 - c.p; turns++;
 		if (cur[26] === 15) { finish(false); return; }
 		const hit = hb[24] > barBefore;
 		if (c.play.steps.length) say(fill(pick(hit ? t.hit : c.p > 0.75 ? [...t.confident, ...t.move] : c.p < 0.3 ? [...t.worried, ...t.move] : t.move), { p: c.p, n: c.n, ms: c.ms }));
@@ -179,6 +207,7 @@
 		const loserOff = human ? hb[27] : hb[26];
 		result = { human, gammon: loserOff === 0 }; phase = 'over'; winP = human ? 1 : 0;
 		status = human ? t.youWin : t.modelWin; say(pick(human ? t.humanWon : t.aiWon));
+		report(human, loserOff === 0);
 	}
 
 	// ---- board geometry (viewBox 760×560). Human home = bottom right (points 1–6 = idx 0–5).
@@ -225,6 +254,7 @@
 				const ro = new ResizeObserver(updateInsets); for (const el of [panelEl, probEl, headerEl]) if (el) ro.observe(el);
 				window.addEventListener('resize', updateInsets); updateInsets();
 			} catch (e) { console.info('[tavla] WebGL unavailable, using the SVG board', e); s3 = null; webglFailed = true; }
+			loadStats();
 			ai = await import('#lib/tavla-ai');
 			// Scripted positions for testing: ?pos=<28 comma-separated ints, human view>&dice=a,b
 			const sp = new URLSearchParams(location.search), pos = sp.get('pos')?.split(',').map(Number), dd = sp.get('dice')?.split(',').map(Number);
@@ -326,6 +356,12 @@
 					<div><small>{t.pips} · {t.you}</small><b>{pc.me}</b></div>
 					<div><small>{t.pips} · {t.model}</small><b>{pc.op}</b></div>
 				</div>
+				{#if gstats}<div class="gstats" aria-live="polite">
+					<small>{ts.title}</small>
+					<p>{ts.line(nf.format(gstats.games), gstats.games, nf.format(gstats.human), nf.format(gstats.model))}</p>
+					{#if gstats.humanGammons || gstats.modelGammons}<p class="gm">{ts.gammons(nf.format(gstats.humanGammons), nf.format(gstats.modelGammons))}</p>{/if}
+					<p class="lead">{leadLine}{#if counted} <span class="ok">✓ {ts.counted}</span>{/if}</p>
+				</div>{/if}
 				{#if info}<p class="info mono">{info}</p>{/if}
 				<p class="engine mono">{t.engineLabel}: {engineName(engine)}</p>
 				<p class="hint">{t.hint}</p>
@@ -417,6 +453,9 @@
 	.stats small { display: block; font-size: 10px; opacity: 0.55; text-transform: uppercase; } .stats b { font-size: 15px; }
 	.info, .engine { margin: 8px 0 0; text-align: center; font-size: 10px; opacity: 0.6; }
 	.hint { margin: 8px 0 0; font-size: 11px; opacity: 0.55; text-align: center; }
+	.gstats { margin: 10px 0 0; padding: 8px 10px; border-radius: 12px; background: #ffffff08; border: 1px solid #ffd36b26; text-align: center; font-size: 12px; line-height: 1.35; }
+	.gstats small { display: block; font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: #ffd36b; opacity: 0.85; }
+	.gstats p { margin: 3px 0 0; } .gstats .gm { opacity: 0.7; font-size: 11px; } .gstats .lead { font-style: italic; opacity: 0.8; } .gstats .ok { font-style: normal; color: #36e27e; }
 	details { margin-top: 10px; font-size: 13px; } summary { cursor: pointer; opacity: 0.85; }
 	details a { color: #ffd36b; }
 	details ul { padding-left: 18px; margin: 8px 0 0; line-height: 1.5; opacity: 0.85; }

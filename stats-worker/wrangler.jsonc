@@ -1,0 +1,10 @@
+// Holds the TavlaStats Durable Object (SQLite storage backend, Workers Free compatible).
+// Bound from ../wrangler.jsonc via durable_objects.bindings[].script_name = "tiny-models-stats".
+{
+	"name": "tiny-models-stats",
+	"main": "index.js",
+	"compatibility_date": "2026-10-01",
+	"workers_dev": false,
+	"preview_urls": false,
+	"exports": { "TavlaStats": { "type": "durable-object", "storage": "sqlite" } }
+}

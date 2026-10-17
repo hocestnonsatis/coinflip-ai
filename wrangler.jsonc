@@ -1,2 +1,6 @@
 { "name": "tiny-models", "main": ".svelte-kit/cloudflare/_worker.js", "compatibility_date": "2026-10-01",
-  "assets": { "binding": "ASSETS", "directory": ".svelte-kit/cloudflare" } }
+  "assets": { "binding": "ASSETS", "directory": ".svelte-kit/cloudflare" },
+  // Global tavla win counter: SQLite-backed Durable Object living in the small stats-worker/ Worker
+  // (adapter-cloudflare generates this Worker's entry, so it cannot export a DO class itself).
+  // Secrets: TAVLA_SECRET (HMAC for game tickets + IP hashing), TAVLA_ADMIN (reset endpoint).
+  "durable_objects": { "bindings": [{ "name": "TAVLA_STATS", "class_name": "TavlaStats", "script_name": "tiny-models-stats" }] } }
