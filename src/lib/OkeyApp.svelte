@@ -242,7 +242,7 @@
 	});
 	const fmtPct = (r: { w: number; n: number }) => (r.n ? `${pct.format(r.w / r.n)} (${nf.format(r.w)}/${nf.format(r.n)})` : '—');
 	const card = $derived(t.card({
-		params: nf.format(STATS.params), games: nf.format(STATS.games), samples: nf.format(STATS.samples), iterations: nf.format(STATS.iterations), hours: `${(STATS.minutes / 60).toLocaleString(lang, { maximumFractionDigits: 1 })} h`,
+		params: nf.format(STATS.params), games: `≈${nf.format(STATS.games)}`, samples: nf.format(STATS.samples), iterations: `≈${nf.format(STATS.iterations)}`, hours: `≈${STATS.minutes} min × ${STATS.procs} CPU`,
 		vsRandom: fmtPct(STATS.vsRandom), vsGreedy: fmtPct(STATS.vsGreedy), greedyRef: fmtPct(STATS.greedyRef), size: `${(STATS.onnxBytes / 1024).toLocaleString(lang, { maximumFractionDigits: 1 })} KB ONNX`
 	}));
 	const tileLabel = (id: number) => (ttype(id) === FJ ? '★' : String(tval(ttype(id))));

@@ -1,0 +1,22 @@
+{
+ "model": "best.npz",
+ "tau": 0.03,
+ "seats": "model in seat 0, dealer rotates",
+ "seeds": "90000+ (held out)",
+ "net_vs_3random": {
+  "w": 3736,
+  "d": 246,
+  "n": 4000
+ },
+ "net_vs_3greedy": {
+  "w": 959,
+  "d": 18,
+  "n": 4000
+ },
+ "greedy_vs_3greedy": {
+  "w": 998,
+  "d": 14,
+  "n": 4000
+ },
+ "minutes": 4.7
+}
