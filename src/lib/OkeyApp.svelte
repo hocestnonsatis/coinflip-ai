@@ -13,6 +13,8 @@
 	import type { Backend } from '#lib/engine';
 	import type { OkeyScene, View, Zone } from '#lib/okey-scene';
 	import Seo from './Seo.svelte';
+	import SoundToggle from './SoundToggle.svelte';
+	import { sfx } from '#lib/sound';
 
 	type Phase = 'deal' | 'draw' | 'discard' | 'bots' | 'over';
 	let { data }: { data: { lang: Lang | null } } = $props();
@@ -119,7 +121,7 @@
 	function start(game: OkeyGame, id: number) {
 		g = game; rack = arrange(g.hands[0], g.okey); sel = null; hl = new Map(); result = null; info = ''; lastTake = null;
 		bots = [0, 1, 2, 3].map(() => ({ p: NaN, away: 0 })); closeSaid = [9, 9, 9, 9];
-		phase = 'deal'; refresh();
+		phase = 'deal'; refresh(); sfx.shuffle(reduced ? 200 : 600);
 		say(pick(t.start));
 		setTimeout(() => { if (id === gameId) nextTurn(id); }, reduced ? 50 : 700);
 	}
@@ -135,13 +137,14 @@
 		if (take && g.top(0) === null) return;
 		if (!take && !g.pile.length) return;
 		const tile = take ? g.takeDiscard(0) : g.drawPile(0);
+		sfx.tilePick(); later(() => sfx.tileDrop(0.3), 330);
 		rack = placeNew(rack, tile); sel = tile; hl = new Map(); phase = 'discard'; status = t.discardNow; refresh();
 	}
 	function humanDiscard(tile: number | null) {
 		if (phase !== 'discard') return;
 		if (tile === null) { status = t.selectFirst; return; }
 		rack = remove(rack, tile); sel = null; hl = new Map();
-		g.discard(0, tile); refresh();
+		g.discard(0, tile); refresh(); later(() => sfx.tileDrop(), 300);
 		nextTurn(gameId);
 	}
 	function finishHuman() {
@@ -150,10 +153,10 @@
 		const cands = sel !== null && g.winWith(0, sel) ? [sel] : [...h].sort((a, b) => +(ttype(a) !== g.okey) - +(ttype(b) !== g.okey));
 		const tile = cands.find((i) => g.winWith(0, i));
 		if (tile === undefined) {
-			hl = setMap(h, g.okey); status = t.notWin(myAway); say(pick(t.invalid)); return;
+			hl = setMap(h, g.okey); status = t.notWin(myAway); say(pick(t.invalid)); sfx.nope(); return;
 		}
 		rack = remove(rack, tile); sel = null;
-		g.discard(0, tile, true); refresh();
+		g.discard(0, tile, true); refresh(); later(() => sfx.tileDrop(), 300);
 		over(0);
 	}
 	let closeSaid = [9, 9, 9, 9];
@@ -165,10 +168,11 @@
 			const r = await mod.chooseDraw(g, s); if (id !== gameId) return;
 			took = r.take; d = r;
 			if (took) { lastTake = g.top(s); g.takeDiscard(s); } else g.drawPile(s);
-			refresh(); await sleep(520); if (id !== gameId) return;
+			refresh(); sfx.tilePick(); await sleep(520); if (id !== gameId) return;
 		}
 		const c = await mod.chooseDiscard(g, s); if (id !== gameId) return;
 		g.discard(s, c.tile, c.finish);
+		later(() => sfx.tileDrop(0.32), 300);
 		bots[s] = { p: c.p, away: c.away }; info = t.candidates(d.n + c.n, fmtMs(d.ms + c.ms));
 		refresh();
 		if (c.finish) { over(s); return; }
@@ -186,6 +190,7 @@
 			hl = winner !== 0 ? new Map() : g.finish?.kind === 'cift' ? pairMap(g.hands[0]) : setMap(g.hands[0], g.okey);
 		}
 		status = winner === null ? t.pileOut : winner === 0 ? t.youWin : t.botWin(names[winner]);
+		later(() => (winner === null ? sfx.draw() : winner === 0 ? sfx.win() : sfx.lose()), 450);
 		say(pick(winner === null ? t.pileOutC : winner === 0 ? t.humanWon : t.botWon), winner && winner > 0 ? names[winner] : 'Okey‑257');
 		refresh();
 		if (!testGame) report(winner === null ? 'draw' : winner === 0 ? 'human' : 'model');
@@ -199,23 +204,25 @@
 		while (wild.length >= 2) { m.set(wild.pop()!, k); m.set(wild.pop()!, k++); }
 		return m;
 	}
-	function doArrange() { if (phase === 'deal' || phase === 'over') return; rack = arrange(g.hands[0], g.okey); hl = setMap(g.hands[0], g.okey); }
+	function doArrange() { if (phase === 'deal' || phase === 'over') return; rack = arrange(g.hands[0], g.okey); hl = setMap(g.hands[0], g.okey); sfx.shuffle(reduced ? 150 : 380); }
+	/** sounds that should land with the tile animation (none of the 2D table's moves animate) */
+	const later = (f: () => void, ms: number) => { if (!mode3d || reduced) f(); else setTimeout(f, ms); };
 
 	// ---- input (shared by the 3D scene and the 2D fallback)
 	function clickTile(id: number) {
 		if (!rack.includes(id)) return;
-		sel = sel === id ? null : id;
+		sel = sel === id ? null : id; sfx.tick();
 	}
 	function clickSlot(slot: number) {
 		if (sel === null) return;
-		rack = move(rack, sel, slot); sel = null; hl = new Map();
+		rack = move(rack, sel, slot); sel = null; hl = new Map(); sfx.slide();
 	}
 	function clickZone(z: Zone) {
 		if (z === 'pile') humanDraw(false); else if (z === 'take') humanDraw(true); else humanDiscard(sel);
 	}
 	function drop(id: number, to: { slot: number } | { zone: Zone }) {
 		if ('zone' in to) { if (to.zone === 'discard' && phase === 'discard') humanDiscard(id); return; }
-		rack = move(rack, id, to.slot); if (sel === id) sel = null; hl = new Map();
+		rack = move(rack, id, to.slot); if (sel === id) sel = null; hl = new Map(); sfx.slide();
 	}
 	// 2D drag (HTML5) for the fallback rack
 	let dragId: number | null = null;
@@ -290,6 +297,7 @@
 		<header bind:this={headerEl}>
 			<a class="back" href={pathFor(lang, '')} aria-label={HUB[lang].back}>←</a>
 			<h1 class="brand"><span class="dot" class:live={engine !== 'loading'}></span> Okey‑257 <small>14‑16‑1 · 1‑ply</small><span class="sr-only"> · {t.title.split('·').slice(1).join('·').trim()}</span></h1>
+			<SoundToggle {lang} />
 			<select class="lang" aria-label="Language" value={lang} onchange={(e) => setLang(e.currentTarget.value as Lang)}>
 				{#each LANGS as l (l.code)}<option value={l.code}>{l.code.toUpperCase()} · {l.name}</option>{/each}
 			</select>

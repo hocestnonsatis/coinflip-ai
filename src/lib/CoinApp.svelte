@@ -8,6 +8,8 @@
 	import { SITE, REPO, pathFor, urlFor, setLangPref } from '#lib/site';
 	import { HUB } from '#lib/i18n-hub';
 	import Seo from './Seo.svelte';
+	import SoundToggle from './SoundToggle.svelte';
+	import { sfx } from '#lib/sound';
 	import Feedback from './Feedback.svelte';
 	import { REGEN, pickOther } from '#lib/i18n-regen';
 
@@ -203,6 +205,8 @@
 		if (holdMs > HOLD_CAP) push(`⚡ ${t.overcharge}`);
 		push(`▸ ${t.holdLog(num(holdMs))} → z=${num(out.z)}` + (out.result === 'dik' || revealed ? ` · τ=${num(out.tau, 5)} → trit=${out.trit > 0 ? '+1' : out.trit}` : ` → σ(w·z·1.5)=${num(out.p, 4)}`));
 		phase = 'flipping';
+		const stopSpin = sfx.coinFlip(power);
+		const land = () => { stopSpin(); if (out.result === 'dik') sfx.coinOdd(); else sfx.coinLand(out.result === 'yazi'); };
 		const finish = () => {
 			last = { result: out.result, confidence: out.confidence, z: out.z, trit: out.trit, ms, tps: Math.round(1000 / ms) };
 			history = [out.result, ...history].slice(0, 40);
@@ -212,8 +216,8 @@
 			if (out.result === 'dik') push(`★ ${t.reveal} (w = ${WEIGHT > 0 ? '+1' : WEIGHT}, log₂3 = ${num(BITS, 2)})`);
 			push(t.output(label(out.result).toLocaleUpperCase(lang), pct.format(out.confidence)));
 		};
-		if (scene) scene.flipCoin({ result: out.result, reducedMotion: reduced, power, onLegendary: () => (legendary = true), onDone: finish });
-		else { if (out.result === 'dik') legendary = true; finish(); }
+		if (scene) scene.flipCoin({ result: out.result, reducedMotion: reduced, power, onLand: land, onLegendary: () => { legendary = true; sfx.sparkle(); }, onDone: finish });
+		else { land(); if (out.result === 'dik') { legendary = true; sfx.sparkle(); } finish(); }
 	}
 </script>
 
@@ -229,6 +233,7 @@
 		<a class="back" href={pathFor(lang, '')} aria-label={HUB[lang].back}>←</a><h1 class="brand"><span class="dot" class:live={phase !== 'loading'}></span> CoinFlip‑1P <small>v0.0.1‑ultra‑quant</small><span class="sr-only"> · {t.title.split('·').slice(1).join('·').trim()}</span></h1>
 		<div class="right">
 			<div class="badges"><span class="sota">{t.badges[0]}</span><span>{t.badges[1]}</span><span>{t.badges[2]}</span><span>{t.badges[3]}</span></div>
+			<SoundToggle {lang} />
 			<select class="lang" aria-label={t.langLabel} value={lang} onchange={(e) => setLang(e.currentTarget.value as Lang)}>
 				{#each LANGS as l (l.code)}<option value={l.code}>{l.code.toUpperCase()} · {l.name}</option>{/each}
 			</select>

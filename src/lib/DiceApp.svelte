@@ -9,6 +9,8 @@
 	import type { DiceScene } from '#lib/dice-scene';
 	import type { Backend } from '#lib/engine';
 	import Seo from './Seo.svelte';
+	import SoundToggle from './SoundToggle.svelte';
+	import { sfx } from '#lib/sound';
 	import Feedback from './Feedback.svelte';
 	import { REGEN, pickOther } from '#lib/i18n-regen';
 
@@ -186,6 +188,7 @@
 		if (holdMs > HOLD_CAP) push(`⚡ ${t.overcharge}`);
 		push(`▸ ${t.holdLog(num(holdMs))} → softmax(g+b) = [${p.map((v) => num(v, 2)).join(' ')}]`);
 		phase = 'rolling';
+		sfx.rattle(reduced ? 150 : 320 + power * 250, reduced ? 3 : 7);
 		const done = () => {
 			last = { face: out.face, rare: out.rare, confidence: out.confidence, ms, tps: Math.round(1000 / ms) };
 			history = [out.face, ...history].slice(0, 60);
@@ -194,8 +197,8 @@
 			comment();
 			push(t.output(label(last), pct.format(out.confidence)));
 		};
-		if (scene) scene.rollDie({ face: out.face, rare: out.rare, reducedMotion: reduced, power, onLegendary: () => (legendary = true), onDone: done });
-		else { if (out.rare) legendary = true; done(); }
+		if (scene) scene.rollDie({ face: out.face, rare: out.rare, reducedMotion: reduced, power, onLand: () => sfx.diceLand(), onLegendary: () => { legendary = true; sfx.sparkle(); }, onDone: done });
+		else { sfx.diceLand(); if (out.rare) { legendary = true; sfx.sparkle(); } done(); }
 	}
 </script>
 
@@ -212,6 +215,7 @@
 		<h1 class="brand"><span class="dot" class:live={phase !== 'loading'}></span> DiceRoll‑6P <small>v0.0.6‑cubic</small><span class="sr-only"> · {t.title.split('·').slice(1).join('·').trim()}</span></h1>
 		<div class="right">
 			<div class="badges"><span class="sota">{t.badges[0]}</span><span>{t.badges[1]}</span><span>{t.badges[2]}</span></div>
+			<SoundToggle {lang} />
 			<select class="lang" aria-label="Language" value={lang} onchange={(e) => setLang(e.currentTarget.value as Lang)}>
 				{#each LANGS as l (l.code)}<option value={l.code}>{l.code.toUpperCase()} · {l.name}</option>{/each}
 			</select>

@@ -57,6 +57,7 @@ Coin ve dice'ta: 3D sahne (three.js, ahşap masa, lamba ışığı), LLM gibi to
 
 - **SvelteKit 3** + **Svelte 5**, **three.js**, **ONNX Runtime Web** (jsDelivr'dan tembel yükleme)
 - **Cloudflare Workers** (`@sveltejs/adapter-cloudflare`), Cloudflare Web Analytics
+- **Ses**: tüm efektler Web Audio API ile anında sentezlenir (`src/lib/sound.ts`; ses dosyası yok, lisans/boyut derdi yok). İlk dokunuş/tuşta açılır; her oyunda 🔊/🔇 düğmesi ve **M** kısayolu, tercih `localStorage`'da saklanır. Ana sayfa sessiz.
 - `redirect-worker/`: eski `coinflip-ai` Worker'ı, yeni adrese 301 yönlendirme
 
 ## Çalıştırma
@@ -84,5 +85,7 @@ python3 scripts/build-onnx.py && python3 scripts/build-onnx-dice.py   # ONNX mod
 - ✊ RockPaperScissors‑3P and 🎱 Magic8Ball‑20P: coming soon.
 
 Type an optional question, **hold** the button (or Space / Enter) and release. The hold duration, hashed with crypto‑random jitter, becomes the model input. Each model is a real ONNX file run by ONNX Runtime Web (WebGPU, else WASM), lazy‑loaded from jsDelivr, with a silent TypeScript fallback. Every language has its own URL (`/`, `/tr`, `/de`, `/es`, `/fr`, plus `/coin` and `/dice` under each).
+
+Sound: every effect is synthesised on the fly with the Web Audio API (`src/lib/sound.ts`, no sample files, so no licensing or download size); audio starts on the first tap/key, each game has a 🔊/🔇 button plus the **M** shortcut, and the choice is remembered in `localStorage`. The hub is silent.
 
 Stack: SvelteKit 3, Svelte 5, three.js, ONNX Runtime Web, Cloudflare Workers. Run: Node 22, `npm i && npm run dev`, `npm test`, deploy with `npm run build && npx wrangler deploy`. Rebuild models: `python3 scripts/build-onnx.py && python3 scripts/build-onnx-dice.py`.

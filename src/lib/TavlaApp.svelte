@@ -12,6 +12,8 @@
 	import type { Backend } from '#lib/engine';
 	import type { TavlaScene } from '#lib/tavla-scene';
 	import Seo from './Seo.svelte';
+	import SoundToggle from './SoundToggle.svelte';
+	import { sfx } from '#lib/sound';
 
 	type Phase = 'opening' | 'roll' | 'move' | 'ai' | 'over';
 	let { data }: { data: { lang: Lang | null } } = $props();
@@ -113,11 +115,11 @@
 	const pc = $derived(pips(hb));
 
 	async function rollAnim(n: number, final: number[], humanSide = true) {
-		rolling = true;
-		if (s3) { await s3.rollDice(final, humanSide); dice = final; rolling = false; return; }
+		rolling = true; sfx.rattle(reduced ? 150 : 420, reduced ? 3 : 8);
+		if (s3) { await s3.rollDice(final, humanSide); sfx.diceLand(); dice = final; rolling = false; return; }
 		const end = performance.now() + (reduced ? 0 : 650);
 		while (performance.now() < end) { dice = Array.from({ length: n }, rollDie); await sleep(70); }
-		dice = final; rolling = false;
+		sfx.diceLand(); dice = final; rolling = false;
 	}
 
 	async function newGame() {
@@ -154,11 +156,13 @@
 		if (phase !== 'move' || animating) return;
 		const r = resolveClick(nextSteps, sel, i);
 		if ('step' in r) { step(r.step); return; }
+		if (r.sel !== sel) sfx.tick();
 		sel = r.sel; status = sel === null ? t.pickChecker : t.pickTarget;
 	}
 	async function step(s: Step) {
 		const after = applyStep(hb, s);
 		if (s3) { animating = true; try { await s3.move(hb, after, s[0], s[1] === -1 ? 26 : s[1], true); } finally { animating = false; } }
+		moveSound(s[1] === -1, after[25] > hb[25]);
 		history = [...history, hb]; hb = after; done = [...done, s];
 		const rest = seqs.filter((q) => done.every((d, i) => q.steps[i][0] === d[0] && q.steps[i][1] === d[1]));
 		if (done.length >= rest[0].steps.length) { sel = null; commitHuman(); return; }
@@ -167,9 +171,11 @@
 		if (sel !== null && !nxt.some((n) => n[0] === sel)) sel = null;
 		status = sel === null ? t.pickChecker : t.pickTarget;
 	}
+	/** wooden clack when a checker lands; a heavier double clack when it hits a blot (to the bar); a soft pop when borne off */
+	const moveSound = (off: boolean, hit: boolean) => (off ? sfx.bearOff() : hit ? sfx.hit() : sfx.checker());
 	function undo() {
 		if (phase !== 'move' || !done.length) return;
-		hb = history[history.length - 1]; history = history.slice(0, -1); done = done.slice(0, -1); sel = null; status = t.pickChecker;
+		sfx.slide(); hb = history[history.length - 1]; history = history.slice(0, -1); done = done.slice(0, -1); sel = null; status = t.pickChecker;
 	}
 	async function commitHuman() {
 		const id = gameId; turns++;
@@ -194,6 +200,7 @@
 			await sleep(s3 ? 120 : 420); if (id !== gameId) return;
 			const next = applyStep(cur, s), after = flip(next);
 			if (s3) { animating = true; try { await s3.move(hb, after, s[0] === 24 ? 25 : 23 - s[0], s[1] === -1 ? 27 : 23 - s[1], false); } finally { animating = false; } if (id !== gameId) return; }
+			moveSound(s[1] === -1, after[24] > hb[24]);
 			cur = next; hb = after; lastAi = [...lastAi, s];
 		}
 		winP = 1 - c.p; turns++;
@@ -207,6 +214,7 @@
 		const loserOff = human ? hb[27] : hb[26];
 		result = { human, gammon: loserOff === 0 }; phase = 'over'; winP = human ? 1 : 0;
 		status = human ? t.youWin : t.modelWin; say(pick(human ? t.humanWon : t.aiWon));
+		if (human) sfx.win(); else sfx.lose();
 		report(human, loserOff === 0);
 	}
 
@@ -278,6 +286,7 @@
 		<header bind:this={headerEl}>
 			<a class="back" href={pathFor(lang, '')} aria-label={HUB[lang].back}>←</a>
 			<h1 class="brand"><span class="dot" class:live={engine !== 'loading'}></span> Tavla‑1.6K <small>TD(λ) · 198‑8‑1</small><span class="sr-only"> · {t.title.split('·').slice(1).join('·').trim()}</span></h1>
+			<SoundToggle {lang} />
 			<select class="lang" aria-label="Language" value={lang} onchange={(e) => setLang(e.currentTarget.value as Lang)}>
 				{#each LANGS as l (l.code)}<option value={l.code}>{l.code.toUpperCase()} · {l.name}</option>{/each}
 			</select>
