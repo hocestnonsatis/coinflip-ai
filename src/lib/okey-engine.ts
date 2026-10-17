@@ -149,18 +149,37 @@ function extendsOf(sets: Set_[], need: Set<number>) {
 		}
 	}
 }
-/** Features of a 14-tile hand (after discarding) + tiles away from a win (dw). seen: public type counts (discards + gösterge). */
+function isolated(left: number[]): number {
+	const L = left.filter((t) => t >= 0); let n = 0;
+	for (let a = 0; a < L.length; a++) {
+		const x = L[a]; let ok = false;
+		for (let b = 0; b < L.length && !ok; b++) {
+			if (a === b) continue; const y = L[b];
+			if (tval(x) === tval(y) && tcol(x) !== tcol(y)) ok = true;
+			else if (tcol(x) === tcol(y) && tval(x) !== tval(y)) {
+				let d = Math.abs(tval(x) - tval(y)); if (Math.min(tval(x), tval(y)) === 1) d = Math.min(d, 14 - Math.max(tval(x), tval(y)));
+				if (d <= 2) ok = true;
+			}
+		}
+		if (!ok) n++;
+	}
+	return n;
+}
+/** Features of a 14-tile hand (after discarding) → returns tiles away from a win (dw). seen: public type counts (discards + gösterge). Must match ai.py. */
 export function features(hand: number[], okey: number, seen: number[], pileLeft: number, out = new Float32Array(NF), off = 0): number {
 	const [c, w] = counts(hand, okey);
 	const dw = 14 - cover(c, w);
 	const { sets, left } = solveSets(c, w);
 	const pr = pairs(c, w);
-	const [np, need] = partials(left); extendsOf(sets, need);
+	const [np, need] = partials(left);
 	const raw = new Array(NT).fill(0); for (const i of hand) raw[ttype(i)]++;
-	let outs = 0;
-	for (const t of need) if (t !== okey) outs += Math.max(0, 2 - seen[t] - raw[t]);
+	const ext = new Set<number>(); extendsOf(sets, ext); for (const t of ext) need.add(t);
+	let outs = 0, kinds = 0;
+	for (const t of need) if (t !== okey) { const u = Math.max(0, 2 - seen[t] - raw[t]); outs += u; if (u > 0) kinds++; }
 	outs += Math.max(0, 2 - seen[okey] - raw[okey]);
-	const f = [dw / 8, +(dw === 1), +(dw === 2), +(dw === 3), +(dw === 4), +(dw >= 5), pr / 7, +(pr >= 5), +(pr >= 6), w / 2, Math.min(np, 6) / 6, Math.min(outs, 24) / 24, pileLeft / 48, sets.length / 5];
+	const iso = isolated(left);
+	const f = [dw / 14, +(dw <= 1), +(dw <= 2), +(dw <= 3), pr / 7, +(pr >= 5), w / 2, Math.min(np, 16) / 8, Math.min(outs, 60) / 40, Math.min(kinds, 30) / 15,
+		pileLeft / 48, sets.length / 5, iso / 10, Math.min(ext.size, 20) / 10];
 	for (let k = 0; k < NF; k++) out[off + k] = f[k];
 	return dw;
 }

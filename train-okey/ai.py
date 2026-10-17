@@ -62,6 +62,21 @@ def _extends(sets):
                 elif hi == 13: need.add(col * 13)  # 1 after 13
     return need
 
+def _isolated(left):
+    """Leftover tiles with no partner at all (no same value in another colour, no same colour within 2)."""
+    L = [t for t in left if t >= 0]; n = 0
+    for a in range(len(L)):
+        x = L[a]; ok = False
+        for b in range(len(L)):
+            if a == b: continue
+            y = L[b]
+            if tval(x) == tval(y) and tcol(x) != tcol(y): ok = True; break
+            if tcol(x) == tcol(y) and tval(x) != tval(y):
+                d = abs(tval(x) - tval(y)); d = min(d, 14 - max(tval(x), tval(y))) if min(tval(x), tval(y)) == 1 else d
+                if d <= 2: ok = True; break
+        n += not ok
+    return n
+
 def features(hand, okey, seen, pile_left):
     """hand: 14 tile ids (after discard). seen: public type counts (discards + gösterge)."""
     c, w = counts(hand, okey)
@@ -69,18 +84,18 @@ def features(hand, okey, seen, pile_left):
     sets, left = solve_sets(c, w)
     pr = pairs(c, w)
     npart, need = _partials(left)
-    need |= _extends(sets)
     raw = [0] * NT
     for i in hand: raw[ttype(i)] += 1
-    outs = 0
+    ext = _extends(sets)
+    need |= ext
+    outs = 0; kinds = 0
     for t in need:
         if t == okey: continue
-        unseen = 2 - seen[t] - raw[t]
-        if t == okey: unseen = 0
-        if okey == t: unseen = 0
-        outs += max(0, unseen)
+        u = max(0, 2 - seen[t] - raw[t]); outs += u; kinds += u > 0
     outs += max(0, 2 - seen[okey] - raw[okey])  # wildcards always help
-    f = [dw / 8, dw == 1, dw == 2, dw == 3, dw == 4, dw >= 5, pr / 7, pr >= 5, pr >= 6, w / 2, min(npart, 6) / 6, min(outs, 24) / 24, pile_left / 48, len(sets) / 5]
+    iso = _isolated(left)
+    f = [dw / 14, dw <= 1, dw <= 2, dw <= 3, pr / 7, pr >= 5, w / 2, min(npart, 16) / 8, min(outs, 60) / 40, min(kinds, 30) / 15,
+         pile_left / 48, len(sets) / 5, iso / 10, min(len(ext), 20) / 10]
     return np.array(f, dtype=np.float64), dw
 
 class Net:
@@ -136,7 +151,7 @@ class GreedyBot:
     def __init__(self, rng): self.rng = rng
     def score(self, g, s, hand):
         f, dw = features(hand, g.okey, g.seen, len(g.pile))
-        return (-dw, f[11], f[10], f[6], self.rng.random())
+        return (-dw, f[8], f[7], f[4], self.rng.random())
     def best_after(self, g, s, hand15):
         best = None
         for i in distinct(hand15):
@@ -162,8 +177,8 @@ class GreedyBot:
 
 class NetBot:
     name = 'net'
-    def __init__(self, net, rng, eps=0.0, tau=0.0, record=False):
-        self.net, self.rng, self.eps, self.tau, self.record = net, rng, eps, tau, record
+    def __init__(self, net, rng, eps=0.0, tau=0.0, record=False, k_draw=8):
+        self.net, self.rng, self.eps, self.tau, self.record, self.k_draw = net, rng, eps, tau, record, k_draw
         self.traj = []
     def reset(self): self.traj = []
     def evals(self, g, s, hand15):
@@ -180,8 +195,15 @@ class NetBot:
             c, w = counts(hh, g.okey)
             if cover(c, w) == 14 or pairs(c, w) >= 7: return 'discard'
         _, _, V = self.evals(g, s, h)
-        cur = self.net.v(features(g.hands[s], g.okey, g.seen, len(g.pile))[0])
-        return 'discard' if V.max() > cur + self.tau else 'pile'
+        return 'discard' if V.max() > self.draw_value(g, s) + self.tau else 'pile'
+    def draw_value(self, g, s):
+        """Expected value of drawing from the pile: mean over k sampled unseen tiles of the best discard afterwards."""
+        if not self.k_draw:
+            return self.net.v(features(g.hands[s], g.okey, g.seen, len(g.pile))[0])
+        vis = set(g.hands[s]) | {g.gosterge} | {t for d in g.discards for t in d}
+        unseen = [i for i in range(106) if i not in vis]
+        vals = [self.evals(g, s, g.hands[s] + [t])[2].max() for t in self.rng.sample(unseen, min(self.k_draw, len(unseen)))]
+        return float(np.mean(vals))
     def discard(self, g, s):
         f = finishing_tile(g, s)
         if f is not None: return f, True
