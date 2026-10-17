@@ -264,6 +264,7 @@ export function createOkeyScene(canvas: HTMLCanvasElement, opts: { onTile: (id: 
 			return toScreen(zones[t.zone].position);
 		},
 		lastView: () => view,
+		busy: () => tweens.length > 0 || dragging !== null,
 		/** Layout audit for the headless tests: tile boxes from different groups (rack, each opponent, pile, gösterge, each discard
 		 * corner) that intersect, and whether the gösterge's face centre is the first thing a camera ray hits (i.e. not covered). */
 		audit() {

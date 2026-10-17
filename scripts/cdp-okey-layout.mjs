@@ -18,7 +18,8 @@ for (const [name, W, H] of VPS) {
 	await send('Emulation.setDeviceMetricsOverride', { width: W, height: H, deviceScaleFactor: 1, mobile: W < 900 });
 	await send('Page.navigate', { url: `${origin}/tr/okey?test=win` });
 	for (let k = 0; k < 120 && !(await ev('!!window.__okeyUi && window.__okeyUi().phase === "discard"')); k++) await sleep(250);
-	await sleep(1500);
+	await sleep(800); for (let k = 0; k < 80 && (await ev('window.__okey3d.busy()')); k++) await sleep(150); // let the deal animation settle
+	await sleep(300);
 	const real = await ev('window.__okey3d.audit()');
 	const shot = async (tag) => { const r = await send('Page.captureScreenshot', { format: 'png' }); writeFileSync(`${out}-${name}${tag}.png`, Buffer.from(r.data, 'base64')); };
 	await shot('');
