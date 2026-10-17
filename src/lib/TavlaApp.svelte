@@ -14,6 +14,7 @@
 	import Seo from './Seo.svelte';
 	import SoundToggle from './SoundToggle.svelte';
 	import { sfx } from '#lib/sound';
+	import { why } from '#lib/why';
 
 	type Phase = 'opening' | 'roll' | 'move' | 'ai' | 'over';
 	let { data }: { data: { lang: Lang | null } } = $props();
@@ -261,7 +262,7 @@
 				mode3d = true; s3.sync(hb);
 				const ro = new ResizeObserver(updateInsets); for (const el of [panelEl, probEl, headerEl]) if (el) ro.observe(el);
 				window.addEventListener('resize', updateInsets); updateInsets();
-			} catch (e) { console.info('[tavla] WebGL unavailable, using the SVG board', e); s3 = null; webglFailed = true; }
+			} catch (e) { console.info(`[tavla] WebGL unavailable, using the SVG board (${why(e)})`); s3 = null; webglFailed = true; }
 			loadStats();
 			ai = await import('#lib/tavla-ai');
 			// Scripted positions for testing: ?pos=<28 comma-separated ints, human view>&dice=a,b

@@ -15,6 +15,7 @@
 	import Seo from './Seo.svelte';
 	import SoundToggle from './SoundToggle.svelte';
 	import { sfx } from '#lib/sound';
+	import { why } from '#lib/why';
 
 	type Phase = 'deal' | 'draw' | 'discard' | 'bots' | 'over';
 	let { data }: { data: { lang: Lang | null } } = $props();
@@ -273,7 +274,7 @@
 				mode3d = true; s3.update(view(), false);
 				const ro = new ResizeObserver(updateInsets); for (const el of [panelEl, seatsEl, headerEl]) if (el) ro.observe(el);
 				window.addEventListener('resize', updateInsets); updateInsets();
-			} catch (e) { console.info('[okey] WebGL unavailable, using the 2D table', e); s3 = null; webglFailed = true; }
+			} catch (e) { console.info(`[okey] WebGL unavailable, using the 2D table (${why(e)})`); s3 = null; webglFailed = true; }
 			(window as unknown as { __okeyUi?: () => object }).__okeyUi = () => ({ phase, turn: g.turn, rack: [...rack], sel, hand: g.hands[0].length, winner: g.winner, pile: g.pile.length, away: myAway, mode3d, engine });
 			loadStats();
 			ai = await import('#lib/okey-ai');

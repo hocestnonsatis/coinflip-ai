@@ -2,6 +2,7 @@
 import type * as ORT from 'onnxruntime-web';
 import { createSession, loadOrt, timeBatch, type Backend } from './engine';
 import { logitsOf, softmax } from './dice-model';
+import { why } from './why';
 
 let session: ORT.InferenceSession | null = null;
 let ort: typeof ORT | null = null;
@@ -22,13 +23,13 @@ export function loadDiceEngine(): Promise<Backend> {
 				if (p.some((v, i) => Math.abs(v - ref[i]) > 1e-4)) throw new Error('mismatch');
 			});
 			if (r) { session = r.session; return r.backend; }
-		} catch (e) { console.info('[dice-engine] ORT unavailable, using TS math', e); }
+		} catch (e) { console.info(`[dice-engine] ORT unavailable, using TS math (${why(e)})`); }
 		return 'ts';
 	})());
 }
 /** p over 6 faces from ONNX Runtime if loaded, otherwise TS. */
 export async function runDice(g: Float32Array): Promise<number[]> {
-	if (session && ort) { try { return await runWith(session, ort, g); } catch (e) { console.info('[dice-engine] run failed', e); } }
+	if (session && ort) { try { return await runWith(session, ort, g); } catch (e) { console.info(`[dice-engine] run failed (${why(e)})`); } }
 	return softmax(logitsOf(g));
 }
 export async function benchDice(): Promise<number | null> {

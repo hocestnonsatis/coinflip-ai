@@ -4,6 +4,7 @@ import type * as ORT from 'onnxruntime-web';
 import { createSession, loadOrt, type Backend } from './engine';
 import { encode, legalPlays, type Board, type Play } from './tavla-engine';
 import { forwardTs } from './tavla-net';
+import { why } from './why';
 export { forwardTs };
 const IN = 198;
 
@@ -22,7 +23,7 @@ export function loadTavlaEngine(): Promise<Backend> {
 				if (Math.abs(p[0] - forwardTs(probe, 1)[0]) > 1e-4) throw new Error('mismatch');
 			});
 			if (r) { session = r.session; return r.backend; }
-		} catch (e) { console.info('[tavla] ORT unavailable, using TS math', e); }
+		} catch (e) { console.info(`[tavla] ORT unavailable, using TS math (${why(e)})`); }
 		return 'ts';
 	})());
 }
@@ -30,7 +31,7 @@ export function loadTavlaEngine(): Promise<Backend> {
 export async function evaluate(boards: Board[]): Promise<Float32Array> {
 	const n = boards.length, x = new Float32Array(n * IN);
 	boards.forEach((b, i) => encode(b, x, i * IN));
-	if (session && ort) { try { return await runOrt(session, ort, x, n); } catch (e) { console.info('[tavla] run failed', e); } }
+	if (session && ort) { try { return await runOrt(session, ort, x, n); } catch (e) { console.info(`[tavla] run failed (${why(e)})`); } }
 	return forwardTs(x, n);
 }
 export type Choice = { play: Play; p: number; n: number; ms: number };

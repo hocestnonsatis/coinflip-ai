@@ -3,6 +3,7 @@
 // Any failure → silent fallback to the TS math in model.ts.
 import type * as ORT from 'onnxruntime-web';
 import { sigmoid, WEIGHT, SCALE } from './model';
+import { why } from './why';
 
 export const ORT_VERSION = '1.30.0';
 const CDN = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/`;
@@ -22,18 +23,29 @@ export function loadOrt(): Promise<typeof ORT> {
 		return o;
 	})());
 }
+/** Ask for a WebGPU adapter ourselves (once) so ORT never tries WebGPU without one (avoids its "No available adapters" warning). */
+let gpuProbe: Promise<boolean> | null = null;
+export function hasGpu(): Promise<boolean> {
+	return (gpuProbe ??= (async () => {
+		const gpu = (navigator as unknown as { gpu?: { requestAdapter(): Promise<unknown> } }).gpu;
+		if (!gpu) return false;
+		try { if (await gpu.requestAdapter()) return true; } catch { /* blocked */ }
+		console.info('[engine] WebGPU unavailable here, using WASM');
+		return false;
+	})());
+}
 /** Create a session on WebGPU (if fast) else WASM, verified by `check`. Null if nothing works. */
 export async function createSession(url: string, check: (s: ORT.InferenceSession, o: typeof ORT) => Promise<void>): Promise<{ session: ORT.InferenceSession; backend: Backend } | null> {
 	const o = await loadOrt();
 	const model = new Uint8Array(await (await fetch(url)).arrayBuffer());
-	for (const ep of ('gpu' in navigator ? ['webgpu', 'wasm'] : ['wasm']) as Backend[]) {
+	for (const ep of ((await hasGpu()) ? ['webgpu', 'wasm'] : ['wasm']) as Backend[]) {
 		try {
 			const s = await o.InferenceSession.create(model, { executionProviders: [ep] });
 			await check(s, o);
 			const t0 = performance.now(); await check(s, o);
 			if (ep === 'webgpu' && performance.now() - t0 > 50) throw new Error('software GPU too slow'); // e.g. SwiftShader
 			return { session: s, backend: ep };
-		} catch (e) { console.info(`[engine] ${ep} unavailable`, e); }
+		} catch (e) { console.info(`[engine] ${ep} unavailable${ep === 'webgpu' ? ', falling back to wasm' : ''} (${why(e)})`); }
 	}
 	return null;
 }
@@ -43,7 +55,7 @@ export function loadEngine(): Promise<Backend> {
 		try {
 			ort = await loadOrt();
 			const model = new Uint8Array(await (await fetch('/model/coinflip-1p.onnx')).arrayBuffer());
-			const eps: Backend[] = 'gpu' in navigator ? ['webgpu', 'wasm'] : ['wasm'];
+			const eps: Backend[] = (await hasGpu()) ? ['webgpu', 'wasm'] : ['wasm'];
 			for (const ep of eps) {
 				try {
 					const s = await ort.InferenceSession.create(model, { executionProviders: [ep] });
@@ -52,9 +64,9 @@ export function loadEngine(): Promise<Backend> {
 					const t0 = performance.now(); await runWith(s, -0.1);
 					if (ep === 'webgpu' && performance.now() - t0 > 50) throw new Error('software GPU too slow'); // e.g. SwiftShader
 					session = s; backend = ep; return ep;
-				} catch (e) { console.info(`[engine] ${ep} unavailable`, e); }
+				} catch (e) { console.info(`[engine] ${ep} unavailable${ep === 'webgpu' ? ', falling back to wasm' : ''} (${why(e)})`); }
 			}
-		} catch (e) { console.info('[engine] ORT unavailable, using TS math', e); }
+		} catch (e) { console.info(`[engine] ORT unavailable, using TS math (${why(e)})`); }
 		return (backend = 'ts');
 	})());
 }
@@ -66,7 +78,7 @@ async function runWith(s: ORT.InferenceSession, z: number): Promise<number> {
 
 /** p = σ(w·z·1.5) from ONNX Runtime if loaded, otherwise TS. */
 export async function runP(z: number): Promise<number> {
-	if (session) { try { return await runWith(session, z); } catch (e) { console.info('[engine] run failed', e); } }
+	if (session) { try { return await runWith(session, z); } catch (e) { console.info(`[engine] run failed (${why(e)})`); } }
 	return sigmoid(WEIGHT * z * SCALE);
 }
 

@@ -33,7 +33,7 @@ let bad = 0;
 for (const s of v) {
 	writeFileSync(`${outDir}/${s.name}.wav`, wav(s.pcm));
 	const db = (x) => (20 * Math.log10(Math.max(x, 1e-6))).toFixed(1);
-	const ok = s.peak > 0.01 && s.peak < 0.9 && s.len < 2.5; if (!ok) bad++;
+	const ok = s.peak > 0.1 && s.peak < 0.75 && s.len < 2.5; if (!ok) bad++; // every effect between -20 and -2.5 dBFS peak
 	console.log(`${s.name.padEnd(9)} peak ${db(s.peak).padStart(6)} dBFS  rms ${db(s.rms).padStart(6)} dBFS  ${s.len.toFixed(2)} s ${ok ? '' : '  <-- check'}`);
 }
 ch.kill(); process.exit(bad ? 1 : 0);

@@ -13,11 +13,14 @@ class Osc extends Node { r: Rec = { kind: 'osc' }; type = 'sine'; frequency = ne
 class Src extends Node { r: Rec = { kind: 'noise' }; buffer: unknown = null; loop = false; constructor() { super(); made.push(this.r); } start(t: number) { this.r.t = t; } stop(t: number) { this.r.stop = t; } }
 class Filt extends Node { type = 'bandpass'; Q = new Param(); frequency = new Param(); }
 class Comp extends Node { threshold = new Param(); knee = new Param(); ratio = new Param(); attack = new Param(); release = new Param(); }
-let contexts = 0, resumes = 0;
+let contexts = 0, resumes = 0; let last: AC | null = null;
 class AC {
-	state = 'suspended'; currentTime = 0; sampleRate = 8000; destination = new Node();
-	constructor() { contexts++; }
+	state = 'suspended'; t0 = performance.now(); sampleRate = 8000; destination = new Node();
+	get currentTime() { return (performance.now() - this.t0) / 1000; }
+	constructor() { contexts++; last = this; }
 	resume() { resumes++; this.state = 'running'; return Promise.resolve(); }
+	close() { this.state = 'closed'; return Promise.resolve(); }
+	createAnalyser() { return new Node(); }
 	createGain() { return new Gain(); } createOscillator() { return new Osc(); } createBufferSource() { return new Src(); }
 	createBiquadFilter() { return new Filt(); } createDynamicsCompressor() { return new Comp(); }
 	createBuffer(_c: number, n: number) { const d = new Float32Array(n); return { getChannelData: () => d }; }
@@ -37,15 +40,22 @@ assert.equal(contexts, 0); assert.equal(made.length, 0, 'no audio graph before u
 // first gesture unlocks (capture listeners), later gestures don't create more contexts
 S.installUnlock(); for (const f of [...(listeners.get('pointerdown') ?? [])]) f();
 assert.equal(contexts, 1); assert.ok(resumes >= 1);
-assert.equal(listeners.get('pointerdown')?.size ?? 0, 0, 'unlock listeners removed once running');
+// a gesture after the browser suspended the context resumes it again (listeners stay installed)
+last!.state = 'suspended'; const r0 = resumes; for (const f of [...(listeners.get('keydown') ?? [])]) f();
+assert.ok(resumes > r0 && last!.state === 'running', 'every gesture resumes a suspended context');
 S.unlock(); assert.equal(contexts, 1);
+// a sound requested while the context is still starting is played once it runs (not dropped)
+last!.state = 'suspended'; made.length = 0; S.sfx.checker(); assert.equal(made.length, 0); await new Promise((r) => setTimeout(r, 5));
+assert.ok(made.length > 0, 'first sound after unlock is deferred, not lost');
+// scheduled slightly ahead of the audio clock (never in the past)
+made.length = 0; const now = last!.currentTime; S.sfx.tick(); assert.ok(made.filter((n) => n.kind === 'osc').every((n) => (n.t ?? 0) > now + 0.02), 'lookahead');
 
-// every sound: some nodes, all short (< 2.5 s) and quiet (envelope peak ≤ 0.6 before the 0.55 master)
+// every sound: some nodes, all short (< 2.5 s), envelope peaks bounded (the output limiter caps the bus at -3 dBFS)
 for (const k of all) {
 	made.length = 0; const r = (S.sfx[k] as (a?: number) => unknown)();
 	if (typeof r === 'function') (r as () => void)();
 	assert.ok(made.length > 0, `${k} builds a graph`);
-	for (const n of made) { if (n.stop !== undefined) assert.ok(n.stop - (n.t ?? 0) < 2.5, `${k} too long`); if (n.peak !== undefined) assert.ok(n.peak <= 0.6, `${k} too loud ${n.peak}`); }
+	for (const n of made) { if (n.stop !== undefined) assert.ok(n.stop - (n.t ?? 0) < 2.5, `${k} too long`); if (n.peak !== undefined) assert.ok(n.peak <= 2.2, `${k} too loud ${n.peak}`); }
 }
 // slight random pitch: repeated clacks differ
 const freqs = new Set<number>(); for (let i = 0; i < 5; i++) { made.length = 0; S.sfx.tilePick(); freqs.add(made.find((n) => n.kind === 'osc')!.f!); }

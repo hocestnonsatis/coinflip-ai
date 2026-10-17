@@ -50,7 +50,7 @@ export interface RollOpts { face: number; rare?: boolean; reducedMotion: boolean
 export function createDiceScene(canvas: HTMLCanvasElement) {
 	const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
 	renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 0.95;
-	renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+	renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
 	const scene = new THREE.Scene();
 	scene.background = new THREE.Color('#050403'); scene.fog = new THREE.Fog('#050403', 6, 16);
 	const pmrem = new THREE.PMREMGenerator(renderer);
