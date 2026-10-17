@@ -5,10 +5,11 @@ export type OkeyDict = {
 	title: string; desc: string; pitch: string; you: string; bot: (n: number) => string; pile: string; drawPile: string; take: string; discard: string; finish: string; arrange: string;
 	gosterge: string; okey: string; newGame: string; yourTurn: string; botTurn: (b: string) => string; drawFirst: string; discardNow: string; selectFirst: string;
 	notWin: (a: number) => string; youWin: string; botWin: (b: string) => string; pileOut: string; cift: string; okeyFinish: string; double: string; winChance: string; away: (a: number) => string;
-	cardTitle: string; card: (s: OkeyCard) => [string, string][]; hint: string; engineLabel: string; engineTs: string; left: (n: number) => string; seat: string;
+	colors: string[]; cardTitle: string; card: (s: OkeyCard) => [string, string][]; hint: string; engineLabel: string; engineTs: string; left: (n: number) => string; seat: string;
 	start: string[]; draw: string[]; took: string[]; close: string[]; far: string[]; botWon: string[]; humanWon: string[]; pileOutC: string[]; invalid: string[]; candidates: (n: number, ms: string) => string;
 };
 const tr: OkeyDict = {
+	colors: ['kırmızı', 'sarı', 'mavi', 'siyah'],
 	title: 'Okey · 257 parametreli yapay zekâya karşı okey oyna', desc: 'Tarayıcıda 3 yapay zekâ rakibe karşı klasik okey oyna. Botlar kendine karşı oynayarak öğrenen 257 parametreli bir sinir ağıyla düşünür, ONNX Runtime ile çalışır. Ücretsiz, kurulum yok.',
 	pitch: '257 parametre · bot oyunlarından öğrendi · gerçek ONNX', you: 'Sen', bot: (n) => `Bot ${n}`, pile: 'Deste', drawPile: 'Desteden çek', take: 'Soldakini al', discard: 'Taş at', finish: 'Bitir', arrange: 'Otomatik diz',
 	gosterge: 'Gösterge', okey: 'Okey', newGame: 'Yeni oyun', yourTurn: 'Sıra sende', botTurn: (b) => `Sıra ${b}’te`, drawFirst: 'Ortadan ya da soldan bir taş çek', discardNow: 'Atacağın taşı seç (ya da Bitir)', selectFirst: 'Önce atacağın taşı seç',
@@ -25,6 +26,7 @@ const tr: OkeyDict = {
 	candidates: (n, ms) => `${n} aday tek ONNX çağrısında puanlandı · ${ms} ms`
 };
 const en: OkeyDict = {
+	colors: ['red', 'yellow', 'blue', 'black'],
 	title: 'Okey · play Turkish okey vs a 257‑parameter AI', desc: 'Play classic Turkish okey (rummikub‑style tiles) in your browser against 3 AI opponents. The bots think with a 257‑parameter neural network trained by self‑play, run with ONNX Runtime. Free, no install.',
 	pitch: '257 parameters · learned from bot self‑play · real ONNX', you: 'You', bot: (n) => `Bot ${n}`, pile: 'Pile', drawPile: 'Draw from pile', take: 'Take left discard', discard: 'Discard', finish: 'Finish', arrange: 'Auto‑arrange',
 	gosterge: 'Indicator', okey: 'Okey', newGame: 'New game', yourTurn: 'Your turn', botTurn: (b) => `${b}’s turn`, drawFirst: 'Draw a tile: from the pile or the left discard', discardNow: 'Pick a tile to discard (or Finish)', selectFirst: 'Select the tile to discard first',
@@ -41,6 +43,7 @@ const en: OkeyDict = {
 	candidates: (n, ms) => `${n} candidates scored in one ONNX call · ${ms} ms`
 };
 const de: OkeyDict = {
+	colors: ['rot', 'gelb', 'blau', 'schwarz'],
 	title: 'Okey · türkisches Okey gegen eine KI mit 257 Parametern', desc: 'Spiele klassisches türkisches Okey im Browser gegen 3 KI‑Gegner. Die Bots denken mit einem neuronalen Netz aus 257 Parametern, durch Selbstspiel trainiert, mit ONNX Runtime. Kostenlos, ohne Installation.',
 	pitch: '257 Parameter · aus Bot‑Selbstspiel gelernt · echtes ONNX', you: 'Du', bot: (n) => `Bot ${n}`, pile: 'Stapel', drawPile: 'Vom Stapel ziehen', take: 'Linken Abwurf nehmen', discard: 'Abwerfen', finish: 'Beenden', arrange: 'Automatisch ordnen',
 	gosterge: 'Anzeiger', okey: 'Okey', newGame: 'Neues Spiel', yourTurn: 'Du bist dran', botTurn: (b) => `${b} ist dran`, drawFirst: 'Zieh einen Stein: vom Stapel oder links', discardNow: 'Wähle einen Stein zum Abwerfen (oder Beenden)', selectFirst: 'Wähle zuerst den Stein zum Abwerfen',
@@ -57,6 +60,7 @@ const de: OkeyDict = {
 	candidates: (n, ms) => `${n} Kandidaten in einem ONNX‑Aufruf bewertet · ${ms} ms`
 };
 const es: OkeyDict = {
+	colors: ['rojo', 'amarillo', 'azul', 'negro'],
 	title: 'Okey · juega al okey turco contra una IA de 257 parámetros', desc: 'Juega al okey turco clásico en tu navegador contra 3 rivales de IA. Los bots piensan con una red neuronal de 257 parámetros entrenada jugando contra sí misma, con ONNX Runtime. Gratis, sin instalar nada.',
 	pitch: '257 parámetros · aprendió de partidas entre bots · ONNX real', you: 'Tú', bot: (n) => `Bot ${n}`, pile: 'Montón', drawPile: 'Robar del montón', take: 'Coger el descarte izquierdo', discard: 'Descartar', finish: 'Cerrar', arrange: 'Ordenar automático',
 	gosterge: 'Indicador', okey: 'Okey', newGame: 'Nueva partida', yourTurn: 'Tu turno', botTurn: (b) => `Turno de ${b}`, drawFirst: 'Roba una ficha: del montón o del descarte izquierdo', discardNow: 'Elige una ficha para descartar (o Cerrar)', selectFirst: 'Primero elige la ficha a descartar',
@@ -73,6 +77,7 @@ const es: OkeyDict = {
 	candidates: (n, ms) => `${n} candidatas puntuadas en una llamada ONNX · ${ms} ms`
 };
 const fr: OkeyDict = {
+	colors: ['rouge', 'jaune', 'bleu', 'noir'],
 	title: 'Okey · joue à l’okey turc contre une IA de 257 paramètres', desc: 'Joue à l’okey turc classique dans ton navigateur contre 3 adversaires IA. Les bots pensent avec un réseau de neurones de 257 paramètres entraîné en jouant contre lui‑même, via ONNX Runtime. Gratuit, sans installation.',
 	pitch: '257 paramètres · appris en jouant entre bots · vrai ONNX', you: 'Toi', bot: (n) => `Bot ${n}`, pile: 'Pioche', drawPile: 'Piocher', take: 'Prendre la défausse de gauche', discard: 'Défausser', finish: 'Terminer', arrange: 'Ranger auto',
 	gosterge: 'Indicateur', okey: 'Okey', newGame: 'Nouvelle partie', yourTurn: 'À toi', botTurn: (b) => `Au tour de ${b}`, drawFirst: 'Prends une tuile : pioche ou défausse de gauche', discardNow: 'Choisis une tuile à défausser (ou Terminer)', selectFirst: 'Choisis d’abord la tuile à défausser',

@@ -88,10 +88,14 @@ export function createOkeyScene(canvas: HTMLCanvasElement, opts: { onTile: (id: 
 	const labelState = ['', '', '', ''];
 
 	// corners: discard piles (seat s throws to the corner on its right), pile + gösterge in the middle
-	const corner = [new THREE.Vector3(4.6, 0, 3.9), new THREE.Vector3(4.6, 0, -3.9), new THREE.Vector3(-4.6, 0, -3.9), new THREE.Vector3(-4.6, 0, 3.9)];
+	// layout (table top ±7.7): pile x −3.3…1.5, gösterge stand x 2.1…3.0, discard corners x/z ±(3.4…5.2) / ±(2.4…4.8), revealed side hands x ±(5.4…6.4)
+	const corner = [new THREE.Vector3(4.3, 0, 3.6), new THREE.Vector3(4.3, 0, -3.6), new THREE.Vector3(-4.3, 0, -3.6), new THREE.Vector3(-4.3, 0, 3.6)];
+	const PILE_X = -2.9, GOST = new THREE.Vector3(2.55, 0, 0), GOST_TILT = 0.5;
 	const zoneMat = (c: string) => new THREE.MeshStandardMaterial({ color: '#1d3324', emissive: new THREE.Color(c), emissiveIntensity: 0, transparent: true, opacity: 0.9 });
 	const zoneMesh = (x: number, z: number, w: number, d: number, zone: Zone, c: string) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, 0.02, d), zoneMat(c)); m.position.set(x, 0.035, z); m.userData.zone = zone; scene.add(m); return m; };
-	const zones: Record<Zone, THREE.Mesh> = { discard: zoneMesh(corner[0].x, corner[0].z, 2.0, 2.4, 'discard', '#36e27e'), take: zoneMesh(corner[3].x, corner[3].z, 2.0, 2.4, 'take', '#ffcf5a'), pile: zoneMesh(-0.35, 0, 3.6, 2.6, 'pile', '#ffcf5a') };
+	const zones: Record<Zone, THREE.Mesh> = { discard: zoneMesh(corner[0].x, corner[0].z, 1.8, 2.4, 'discard', '#36e27e'), take: zoneMesh(corner[3].x, corner[3].z, 1.8, 2.4, 'take', '#ffcf5a'), pile: zoneMesh(PILE_X + 2.5 * (TW + 0.06), 0, 5.0, 2.6, 'pile', '#ffcf5a') };
+	// gösterge stand: a small wooden wedge right of the pile; the indicator leans on it, face up, tilted toward the human camera
+	const stand = mk(1.05, 0.34, 1.25, GOST.x, 0.17, GOST.z, scene); void stand;
 
 	// tiles
 	const tileGeo = new RoundedBoxGeometry(TW, TH, TD, 2, 0.06);
@@ -114,16 +118,16 @@ export function createOkeyScene(canvas: HTMLCanvasElement, opts: { onTile: (id: 
 		v.opp.forEach((hand, j) => {
 			const s = j + 1, n = hand.length, a = seatRot[s], r = 6.92;
 			hand.forEach((id, k) => {
-				const off = (k - (n - 1) / 2) * (TW * 0.98), local = new THREE.Vector3(off, 0.5 + TH / 2 - 0.02, 0);
+				const off = (k - (n - 1) / 2) * (TW * (v.reveal ? 0.99 : 0.98)) * (v.reveal && s === 2 ? -1 : 1), local = new THREE.Vector3(off, 0.5 + TH / 2 - 0.02, 0);
 				const p = local.applyAxisAngle(new THREE.Vector3(0, 1, 0), a).add(new THREE.Vector3(Math.sin(a) * r, 0, Math.cos(a) * r));
 				// tiles face their owner (away from the table centre: the camera only sees backs); at the end the hand is laid face up in front of the rack
-				if (v.reveal) { p.y = 0.03 + TD / 2; p.add(new THREE.Vector3(-Math.sin(a), 0, -Math.cos(a)).multiplyScalar(1.1)); }
-				out.set(id, { p, e: v.reveal ? new THREE.Euler(-Math.PI / 2, 0, 0, 'YXZ') : new THREE.Euler(-0.18, a, 0, 'YXZ') });
+				if (v.reveal) { p.y = 0.03 + TD / 2; p.add(new THREE.Vector3(-Math.sin(a), 0, -Math.cos(a)).multiplyScalar(0.95)); } // revealed: inner edge 5.47 from centre, ±5.13 along the side → clear of corners and neighbours
+				out.set(id, { p, e: v.reveal ? new THREE.Euler(-Math.PI / 2, s === 2 ? 0 : a, 0, 'YXZ') : new THREE.Euler(-0.18, a, 0, 'YXZ') });
 			});
 		});
 		// pile: stacks of 4 face down, 2 rows
-		v.pile.forEach((id, k) => { const st = Math.floor(k / 4), h = k % 4; out.set(id, { p: new THREE.Vector3(-1.85 + (st % 6) * (TW + 0.06), 0.03 + TD / 2 + h * TD, (st >= 6 ? 0.58 : -0.58)), e: new THREE.Euler(Math.PI / 2, 0, 0, 'YXZ') }); });
-		out.set(v.gosterge, { p: new THREE.Vector3(2.4, 0.03 + TD / 2, 0), e: new THREE.Euler(-Math.PI / 2, 0, 0.12, 'YXZ') });
+		v.pile.forEach((id, k) => { const st = Math.floor(k / 4), h = k % 4; out.set(id, { p: new THREE.Vector3(PILE_X + (st % 6) * (TW + 0.06), 0.03 + TD / 2 + h * TD, (st >= 6 ? 0.58 : -0.58)), e: new THREE.Euler(Math.PI / 2, 0, 0, 'YXZ') }); });
+		out.set(v.gosterge, { p: new THREE.Vector3(GOST.x, 0.34 + TD / 2 + 0.22, GOST.z + 0.05), e: new THREE.Euler(-Math.PI / 2 + GOST_TILT, 0, 0, 'YXZ') });
 		v.discards.forEach((d, s) => d.forEach((id, k) => {
 			const c = corner[s], j = d.length - 1 - k; // newest on top, older ones fan out underneath
 			out.set(id, { p: new THREE.Vector3(c.x + Math.min(j, 6) * 0.05 * (s < 2 ? -1 : 1), 0.03 + TD / 2 + k * 0.02, c.z + Math.min(j, 6) * 0.07 * (s === 0 || s === 3 ? -1 : 1)), e: new THREE.Euler(-Math.PI / 2, seatRot[s] * 0 + (((id * 37) % 9) - 4) * 0.03, 0, 'YXZ') });
@@ -162,7 +166,8 @@ export function createOkeyScene(canvas: HTMLCanvasElement, opts: { onTile: (id: 
 		}
 		for (const z of Object.keys(zones) as Zone[]) (zones[z].material as THREE.MeshStandardMaterial).emissiveIntensity = v.zones[z] ? 0.55 : 0.0;
 		strips.forEach((s, i) => ((s.material as THREE.MeshStandardMaterial).emissiveIntensity = v.turn === i ? 2.2 : 0));
-		labels.forEach((sp, j) => { const s = j + 1, txt = `${v.names[s]} · ${v.opp[j].length}`, st = `${txt}|${v.turn === s}`; if (labelState[s] !== st) { labelState[s] = st; const mat = sp.material as THREE.SpriteMaterial; mat.map?.dispose(); mat.map = labelTex(txt, v.turn === s); mat.needsUpdate = true; } });
+		labels.forEach((sp, j) => { const s = j + 1, lr = v.reveal ? 7.9 : 5.6; sp.position.set(Math.sin(seatRot[s]) * lr, v.reveal ? 1.9 : 1.6, Math.cos(seatRot[s]) * lr);
+			const txt = `${v.names[s]} · ${v.opp[j].length}`, st = `${txt}|${v.turn === s}`; if (labelState[s] !== st) { labelState[s] = st; const mat = sp.material as THREE.SpriteMaterial; mat.map?.dispose(); mat.map = labelTex(txt, v.turn === s); mat.needsUpdate = true; } });
 		invalidate();
 		return Promise.all(jobs).then(() => undefined);
 	}
@@ -257,6 +262,24 @@ export function createOkeyScene(canvas: HTMLCanvasElement, opts: { onTile: (id: 
 			if ('tile' in t) return toScreen(tiles[t.tile].position);
 			if ('slot' in t) return toScreen(slotPos(t.slot));
 			return toScreen(zones[t.zone].position);
+		},
+		lastView: () => view,
+		/** Layout audit for the headless tests: tile boxes from different groups (rack, each opponent, pile, gösterge, each discard
+		 * corner) that intersect, and whether the gösterge's face centre is the first thing a camera ray hits (i.e. not covered). */
+		audit() {
+			if (!view) return null;
+			const v: View = view, grp = new Map<number, string>();
+			v.rack.forEach((id) => id !== null && grp.set(id, 'rack')); v.opp.forEach((h, j) => h.forEach((id) => grp.set(id, `opp${j + 1}`)));
+			v.pile.forEach((id) => grp.set(id, 'pile')); grp.set(v.gosterge, 'gosterge'); v.discards.forEach((d, s) => d.forEach((id) => grp.set(id, `disc${s}`)));
+			const tg = targets(v), boxes: [number, string, THREE.Box3][] = [];
+			for (const [id, t] of tg) { const m = new THREE.Mesh(tileGeo); m.position.copy(t.p); m.quaternion.setFromEuler(t.e); m.updateMatrixWorld(); const b = new THREE.Box3().setFromObject(m).expandByScalar(-0.03); boxes.push([id, grp.get(id) ?? '?', b]); }
+			const overlaps: string[] = [];
+			for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) if (boxes[i][1] !== boxes[j][1] && boxes[i][2].intersectsBox(boxes[j][2])) overlaps.push(`${boxes[i][1]}#${boxes[i][0]}×${boxes[j][1]}#${boxes[j][0]}`);
+			const g = tiles[v.gosterge], face = new THREE.Vector3(0, 0, TD / 2 + 0.001).applyQuaternion(g.quaternion).add(g.position);
+			const dir = face.clone().sub(camera.position).normalize(); ray.set(camera.position, dir);
+			const hit = ray.intersectObjects(tiles.filter((m) => m.visible), false)[0];
+			const sp = toScreen(face), r = canvas.getBoundingClientRect();
+			return { overlaps, gostergeVisible: hit?.object === g, gostergeInFreeArea: sp.x >= r.left + insets.left && sp.x <= r.right - insets.right && sp.y >= r.top + insets.top && sp.y <= r.bottom - insets.bottom, gostergeScreen: sp };
 		},
 		/** Projected human-rack rectangle (CSS px) — for the layout tests. */
 		rackRect() { const ps = [[-RX / 2, 1.5, 5.6], [RX / 2, 1.5, 5.6], [-RX / 2, 0, 7.6], [RX / 2, 0, 7.6]].map(([x, y, z]) => toScreen(new THREE.Vector3(x, y, z))); return { x0: Math.min(...ps.map((p) => p.x)), x1: Math.max(...ps.map((p) => p.x)), y0: Math.min(...ps.map((p) => p.y)), y1: Math.max(...ps.map((p) => p.y)), pr: curPr }; },

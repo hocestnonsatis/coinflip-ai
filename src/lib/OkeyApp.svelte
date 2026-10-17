@@ -245,9 +245,11 @@
 		params: nf.format(STATS.params), games: `≈${nf.format(STATS.games)}`, samples: nf.format(STATS.samples), iterations: `≈${nf.format(STATS.iterations)}`, hours: `≈${STATS.minutes} min × ${STATS.procs} CPU`,
 		vsRandom: fmtPct(STATS.vsRandom), vsGreedy: fmtPct(STATS.vsGreedy), greedyRef: fmtPct(STATS.greedyRef), size: `${(STATS.onnxBytes / 1024).toLocaleString(lang, { maximumFractionDigits: 1 })} KB ONNX`
 	}));
+	const SQ = ['🟥', '🟨', '🟦', '⬛'];
+	const colorName = (ty: number) => t.colors[tcol(ty)];
 	const tileLabel = (id: number) => (ttype(id) === FJ ? '★' : String(tval(ttype(id))));
 	const tileCls = (id: number) => (ttype(id) === FJ ? 'fj' : `c${tcol(ttype(id))}`);
-	const gt = $derived(snap.gosterge), ok = $derived(snap.okey);
+	const gt = $derived(snap.gosterge), gtT = $derived(ttype(snap.gosterge)), ok = $derived(snap.okey); // gt = tile id, gtT / ok = tile types
 
 	onMount(() => {
 		const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -303,6 +305,10 @@
 					{#if s === 0}<small>{t.away(myAway)}</small>{:else}<small>{v && Number.isFinite(v.p) ? `${pct.format(v.p)} · ${t.away(v.away)}` : '—'}</small>{/if}
 				</div>
 			{/each}
+			<span class="br" aria-hidden="true"></span>
+			<div class="hud" role="note" aria-label={`${t.gosterge} ${colorName(gtT)} ${tval(gtT)}, ${t.okey} ${colorName(ok)} ${tval(ok)}`}>
+				<span>{t.gosterge}: <b class="c{tcol(gtT)}"><i aria-hidden="true">{SQ[tcol(gtT)]}</i>{tval(gtT)}</b></span><span class="sep">·</span><span>{t.okey}: <b class="c{tcol(ok)} okb"><i aria-hidden="true">{SQ[tcol(ok)]}</i>{tval(ok)}</b></span>
+			</div>
 		</div>
 
 		{#if webglFailed}
@@ -313,6 +319,7 @@
 					<button class="zone" class:hot={phase === 'draw'} onclick={() => clickZone('pile')} disabled={phase !== 'draw'}>{t.pile}<br /><b>{snap.pile}</b></button>
 					<button class="zone" class:hot={phase === 'draw' && top3 !== null} onclick={() => clickZone('take')} disabled={phase !== 'draw' || top3 === null}>{t.take}<br />{#if top3 !== null}<span class="tl {tileCls(top3)}">{tileLabel(top3)}</span>{/if}</button>
 					<div class="zone ind">{t.gosterge}<br /><span class="tl {tileCls(gt)}">{tileLabel(gt)}</span></div>
+					<div class="zone ind">{t.okey}<br /><span class="tl c{tcol(ok)} okey">{tval(ok)}</span></div>
 					<button class="zone" class:hot={phase === 'discard' && sel !== null} onclick={() => clickZone('discard')} disabled={phase !== 'discard'}>{t.discard}<br />{#if snap.myTop !== null}<span class="tl {tileCls(snap.myTop)}">{tileLabel(snap.myTop)}</span>{/if}</button>
 				</div>
 				<div class="rack2d">
@@ -373,7 +380,11 @@
 	.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 	.mono { font-family: ui-monospace, 'SF Mono', Menlo, monospace; }
 	.stage3d { position: fixed; inset: 0; width: 100vw; height: 100dvh; display: block; touch-action: none; cursor: pointer; background: #050403; }
-	.seats { display: flex; gap: 6px; justify-content: center; margin: 0 0 10px; }
+	.seats { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin: 0 0 10px; }
+	.br { flex-basis: 100%; height: 0; }
+	.hud { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; padding: 3px 12px; border-radius: 99px; background: #0c0c16c8; border: 1px solid #ffd36b40; font-size: 13px; }
+	.hud b { font: 900 15px Georgia, serif; background: linear-gradient(180deg, #fbf6e6, #e2d6b6); border-radius: 4px; padding: 0 5px 0 3px; display: inline-flex; align-items: center; gap: 3px; }
+	.hud b i { font-style: normal; font-size: 10px; } .hud .okb { box-shadow: 0 0 0 2px #ffb000; } .hud .sep { opacity: 0.5; }
 	.seat { flex: 1; max-width: 170px; text-align: center; padding: 5px 8px; border-radius: 12px; background: #0c0c16a0; border: 1px solid #ffffff14; font-size: 12px; line-height: 1.25; transition: background 0.3s, box-shadow 0.3s; }
 	.seat small { display: block; opacity: 0.7; font-size: 11px; font-family: ui-monospace, monospace; }
 	.seat.on { background: #ffcf5a; color: #1a1205; box-shadow: 0 0 18px #ffcf5a88; } .seat.on small { opacity: 0.85; }
