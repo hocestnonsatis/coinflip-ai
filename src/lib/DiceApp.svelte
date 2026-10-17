@@ -10,6 +10,7 @@
 	import type { Backend } from '#lib/engine';
 	import Seo from './Seo.svelte';
 	import Feedback from './Feedback.svelte';
+	import { REGEN, pickOther } from '#lib/i18n-regen';
 
 	type Phase = 'loading' | 'ready' | 'thinking' | 'rolling' | 'done';
 	type Result = { face: number; rare: boolean; confidence: number; tps: number; ms: number };
@@ -82,6 +83,25 @@
 		copyTimer = window.setTimeout(() => (copyFeedback = 'idle'), 1500);
 	}
 	const count = (f: number) => history.filter((h) => h === f).length;
+	// ↻ Regenerate: re-sample the comment for the same face (the die has already landed)
+	let lastHold = 0, lineIdx = -1;
+	let regens = $state(0);
+	const poolFor = (r: Result) => (r.rare ? t.rareLines : [...t.lines, ...(r.face <= 2 ? t.lowLines : r.face >= 5 ? t.highLines : [])]);
+	function comment() {
+		if (!last) return;
+		const q = asked.replace(/[?？]+$/, '');
+		if (!q) { streamOracle(''); return; }
+		const pool = poolFor(last);
+		lineIdx = pickOther(pool.length, lineIdx);
+		streamOracle(`“${q}?” — ${fill(pool[lineIdx], { face: last.face, conf: last.confidence, tps: last.tps, ms: lastHold })}`);
+	}
+	function regenerate() {
+		if (!last || busy || !oracle) return;
+		regens++;
+		push(REGEN[lang].log(regens + 1));
+		comment();
+	}
+	const stopKey = (e: KeyboardEvent) => e.stopPropagation();
 
 	const jsonLd = $derived({
 		'@context': 'https://schema.org', '@type': 'WebApplication', name: 'DiceRoll‑6P', alternateName: t.title,
@@ -170,9 +190,8 @@
 			last = { face: out.face, rare: out.rare, confidence: out.confidence, ms, tps: Math.round(1000 / ms) };
 			history = [out.face, ...history].slice(0, 60);
 			phase = 'done';
-			const pool = out.rare ? t.rareLines : [...t.lines, ...(out.face <= 2 ? t.lowLines : out.face >= 5 ? t.highLines : [])];
-			const q = asked.replace(/[?？]+$/, '');
-			streamOracle(q ? `“${q}?” — ${fill(pool[Math.floor(Math.random() * pool.length)], { face: out.face, conf: out.confidence, tps: last.tps, ms: holdMs })}` : '');
+			lastHold = holdMs; lineIdx = -1; regens = 0;
+			comment();
 			push(t.output(label(last), pct.format(out.confidence)));
 		};
 		if (scene) scene.rollDie({ face: out.face, rare: out.rare, reducedMotion: reduced, power, onLegendary: () => (legendary = true), onDone: done });
@@ -217,6 +236,7 @@
 			{#if oracle}<p class="oracle" aria-busy={streaming}>{oracleShown}{#if streaming}<span class="cursor" aria-hidden="true">▍</span>{/if}</p>{/if}
 			<p>{t.confidence}: <b>{pct.format(last.confidence)}</b> <span class="conf"><span style:width="{last.confidence * 100}%"></span></span></p>
 			<button type="button" class="copy" onclick={copyVerdict}>{#if copyFeedback === 'ok'}{t.copied}{:else if copyFeedback === 'fail'}{t.copyFail}{:else}{t.copy}{/if}</button>
+			{#if oracle}<button type="button" class="copy regen" onclick={regenerate} onkeydown={stopKey} onkeyup={stopKey}>{REGEN[lang].regen}{#if regens}<span class="n mono">#{regens + 1}</span>{/if}</button>{/if}
 			{#key last}<Feedback {lang} />{/key}
 		{:else if phase === 'thinking'}
 			<h2 class="think">{t.thinking}<span>.</span><span>.</span><span>.</span></h2>
@@ -291,6 +311,7 @@
 	.cursor { display: inline-block; margin-left: 1px; font-style: normal; animation: blink 0.8s steps(1) infinite; }
 	.copy { margin-top: 10px; padding: 6px 14px; font: inherit; font-size: 12px; font-weight: 600; color: #eae6da; background: #ffffff12; border: 1px solid #ffffff2a; border-radius: 99px; cursor: pointer; backdrop-filter: blur(8px); }
 	.copy:hover { background: #ffffff1e; border-color: #ffc95a66; color: #ffe08a; }
+	.regen { margin-left: 6px; background: #0c0c16b3; } .regen .n { margin-left: 0.45em; opacity: 0.6; font-weight: 500; }
 	.panel { justify-self: center; width: min(560px, 100%); box-sizing: border-box; background: #0c0c16b3; border: 1px solid #ffffff1a; border-radius: 18px; padding: 14px; backdrop-filter: blur(14px); box-shadow: 0 20px 60px #0008; }
 	.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; text-align: center; }
 	.stats small { display: block; font-size: 10px; opacity: 0.55; text-transform: uppercase; }

@@ -14,3 +14,15 @@ for (const l of langs) {
 	}
 }
 console.log(`feedback: ${langs.length} languages × ${FEEDBACK.en.up.length}+${FEEDBACK.en.down.length} lines OK`);
+
+// ↻ Regenerate: all languages present, log mentions the response number, pickOther never repeats.
+import { REGEN, pickOther } from '../src/lib/i18n-regen.ts';
+assert.deepEqual(Object.keys(REGEN).sort(), [...langs].sort());
+for (const l of langs) { assert.ok(REGEN[l].regen.trim()); assert.ok(REGEN[l].log(7).includes('7'), `${l} regen log`); }
+for (const len of [1, 2, 3, 10]) for (let prev = -1; prev < len; prev++) for (let k = 0; k < 50; k++) {
+	const i = pickOther(len, prev);
+	assert.ok(Number.isInteger(i) && i >= 0 && i < len, `pickOther range ${len}/${prev}/${i}`);
+	if (len > 1 && prev >= 0) assert.notEqual(i, prev);
+}
+assert.equal(pickOther(5, 4, () => 0.999999), 3);
+console.log('regen: 5 languages, pickOther OK');

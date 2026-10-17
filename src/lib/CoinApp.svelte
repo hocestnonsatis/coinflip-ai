@@ -9,6 +9,7 @@
 	import { HUB } from '#lib/i18n-hub';
 	import Seo from './Seo.svelte';
 	import Feedback from './Feedback.svelte';
+	import { REGEN, pickOther } from '#lib/i18n-regen';
 
 	type Phase = 'loading' | 'ready' | 'thinking' | 'flipping' | 'done';
 	let canvas: HTMLCanvasElement;
@@ -86,6 +87,25 @@
 	}
 
 	const count = (k: Side) => history.filter((h) => h === k).length;
+	// ↻ Regenerate: re-sample the comment for the same result (the coin has already landed)
+	let lastHold = 0, lineIdx = -1;
+	let regens = $state(0);
+	const poolFor = (s: Side) => (s === 'yazi' ? [...t.yesLines, ...t.bothLines] : s === 'tura' ? [...t.noLines, ...t.bothLines] : t.maybeLines);
+	function comment() {
+		if (!last) return;
+		const q = asked.replace(/[?？]+$/, '');
+		if (!q) { streamOracle(''); return; }
+		const pool = poolFor(last.result);
+		lineIdx = pickOther(pool.length, lineIdx);
+		streamOracle(`“${q}?” — ${fill(pool[lineIdx], { conf: last.confidence, tps: last.tps, ms: lastHold, z: last.z })}`);
+	}
+	function regenerate() {
+		if (!last || busy || !oracle) return;
+		regens++;
+		push(REGEN[lang].log(regens + 1));
+		comment();
+	}
+	const stopKey = (e: KeyboardEvent) => e.stopPropagation();
 	const busy = $derived(phase === 'thinking' || phase === 'flipping' || phase === 'loading');
 	const engineName = (e: Backend | 'loading') => e === 'webgpu' ? 'ONNX Runtime · WebGPU' : e === 'wasm' ? 'ONNX Runtime · WASM' : e === 'loading' ? '…' : t.engineTs;
 	const jsonLd = $derived({
@@ -187,9 +207,8 @@
 			last = { result: out.result, confidence: out.confidence, z: out.z, trit: out.trit, ms, tps: Math.round(1000 / ms) };
 			history = [out.result, ...history].slice(0, 40);
 			phase = 'done';
-			const pool = out.result === 'yazi' ? [...t.yesLines, ...t.bothLines] : out.result === 'tura' ? [...t.noLines, ...t.bothLines] : t.maybeLines;
-			const q = asked.replace(/[?？]+$/, '');
-			streamOracle(q ? `“${q}?” — ${fill(pool[Math.floor(Math.random() * pool.length)], { conf: out.confidence, tps: last.tps, ms: holdMs, z: out.z })}` : '');
+			lastHold = holdMs; lineIdx = -1; regens = 0;
+			comment();
 			if (out.result === 'dik') push(`★ ${t.reveal} (w = ${WEIGHT > 0 ? '+1' : WEIGHT}, log₂3 = ${num(BITS, 2)})`);
 			push(t.output(label(out.result).toLocaleUpperCase(lang), pct.format(out.confidence)));
 		};
@@ -238,6 +257,7 @@
 			<button type="button" class="copy" onclick={copyVerdict} aria-live="polite">
 				{#if copyFeedback === 'ok'}{t.copied}{:else if copyFeedback === 'fail'}{t.copyFail}{:else}{t.copy}{/if}
 			</button>
+			{#if oracle}<button type="button" class="copy regen" onclick={regenerate} onkeydown={stopKey} onkeyup={stopKey}>{REGEN[lang].regen}{#if regens}<span class="n mono">#{regens + 1}</span>{/if}</button>{/if}
 			{#key last}<Feedback {lang} />{/key}
 		{:else if phase === 'thinking'}
 			<h2 class="think">{t.thinking}<span>.</span><span>.</span><span>.</span></h2>
@@ -325,6 +345,7 @@
 	.copy { margin-top: 10px; padding: 6px 14px; font: inherit; font-size: 12px; font-weight: 600; letter-spacing: 0.02em; color: #eae6da; background: #ffffff12; border: 1px solid #ffffff2a; border-radius: 99px; cursor: pointer; backdrop-filter: blur(8px); transition: background 0.2s, border-color 0.2s, color 0.2s; }
 	.copy:hover { background: #ffffff1e; border-color: #ffc95a66; color: #ffe08a; }
 	.copy:active { transform: scale(0.97); }
+	.regen { margin-left: 6px; background: #0c0c16b3; } .regen .n { margin-left: 0.45em; opacity: 0.6; font-weight: 500; }
 	.arrow { margin-left: 0.35em; font-size: 0.55em; -webkit-text-fill-color: #36e27e; color: #36e27e; filter: drop-shadow(0 0 14px #36e27e66); }
 	.cursor { display: inline-block; margin-left: 1px; font-style: normal; animation: blink 0.8s steps(1) infinite; }
 	@keyframes blink { 50% { opacity: 0; } }
