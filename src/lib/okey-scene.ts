@@ -110,13 +110,26 @@ export function createOkeyScene(canvas: HTMLCanvasElement, opts: { onTile: (id: 
 
 	// tiles
 	const tileGeo = new RoundedBoxGeometry(TW, TH, TD, 2, 0.06);
+	// highlight frame: a rounded-rect ring just outside the tile outline, a hair behind the face plane, so its own face and
+	// every neighbour's face win the depth test: it can never cover a numeral. Unlit, not tone mapped, below the bloom threshold
+	const rr = (w: number, h: number, r: number) => { const p = new THREE.Path(), x = -w / 2, y = -h / 2; p.moveTo(x + r, y); p.lineTo(x + w - r, y); p.quadraticCurveTo(x + w, y, x + w, y + r); p.lineTo(x + w, y + h - r); p.quadraticCurveTo(x + w, y + h, x + w - r, y + h); p.lineTo(x + r, y + h); p.quadraticCurveTo(x, y + h, x, y + h - r); p.lineTo(x, y + r); p.quadraticCurveTo(x, y, x + r, y); return p; };
+	const FRAME = 0.055, frameShape = new THREE.Shape(rr(TW + 0.02 + 2 * FRAME, TH + 0.02 + 2 * FRAME, 0.09).getPoints(6)); frameShape.holes.push(rr(TW + 0.02, TH + 0.02, 0.07));
+	const frameGeo = new THREE.ShapeGeometry(frameShape, 6);
+	const chevGeo = new THREE.ShapeGeometry(new THREE.Shape([new THREE.Vector2(-0.13, 0.11), new THREE.Vector2(0, -0.02), new THREE.Vector2(0.13, 0.11), new THREE.Vector2(0.13, 0.17), new THREE.Vector2(0, 0.04), new THREE.Vector2(-0.13, 0.17)]));
+	const chevMat = new THREE.MeshBasicMaterial({ color: '#36e27e', toneMapped: false, side: THREE.DoubleSide, depthTest: false });
+	const frameMats = new Map<string, THREE.MeshBasicMaterial>();
+	const frameMat = (c: string) => { let m = frameMats.get(c); if (!m) frameMats.set(c, (m = new THREE.MeshBasicMaterial({ color: c, toneMapped: false, side: THREE.DoubleSide }))); return m; };
 	const faces = Array.from({ length: 53 }, (_, t) => faceTex(t)), back = backTex();
 	const tiles = Array.from({ length: 106 }, (_, id) => {
-		const side = new THREE.MeshPhysicalMaterial({ color: '#d9cfb6', roughness: 0.78, clearcoat: 0, emissive: new THREE.Color('#000'), emissiveIntensity: 0.6 });
-		const face = new THREE.MeshPhysicalMaterial({ map: faces[ttype(id)], color: '#ece6d8', roughness: 0.8, clearcoat: 0, specularIntensity: 0.35, emissive: new THREE.Color('#000'), emissiveIntensity: 0.6 });
+		// tile materials never change after creation: highlights live on a separate frame mesh outside the face
+		const side = new THREE.MeshPhysicalMaterial({ color: '#d9cfb6', roughness: 0.78, clearcoat: 0 });
+		const face = new THREE.MeshPhysicalMaterial({ map: faces[ttype(id)], color: '#ece6d8', roughness: 0.8, clearcoat: 0, specularIntensity: 0.35 });
 		const bk = new THREE.MeshPhysicalMaterial({ map: back, color: '#cfc4a8', roughness: 0.8, clearcoat: 0 });
 		const m = new THREE.Mesh(tileGeo, [side, side, side, side, face, bk]); m.castShadow = true; m.receiveShadow = true; m.userData.id = id; m.visible = false;
-		m.rotation.order = 'YXZ'; scene.add(m); return m;
+		m.rotation.order = 'YXZ'; scene.add(m);
+		const fr = new THREE.Mesh(frameGeo, frameMat('#000')); fr.position.z = TD / 2 - 0.012; fr.visible = false; fr.name = 'frame'; m.add(fr);
+		const ch = new THREE.Mesh(chevGeo, chevMat); ch.position.set(0, TH / 2 + 0.3, TD / 2); ch.scale.setScalar(1.3); ch.renderOrder = 10; ch.visible = false; ch.name = 'chev'; m.add(ch);
+		return m;
 	});
 	const hitMat = new THREE.MeshBasicMaterial({ visible: false });
 	const slotHits = Array.from({ length: SLOTS }, (_, k) => { const m = new THREE.Mesh(new THREE.BoxGeometry(PITCH, TH * 1.1, 0.9), hitMat); m.position.copy(slotPos(k)); m.userData.slot = k; scene.add(m); return m; });
@@ -126,7 +139,7 @@ export function createOkeyScene(canvas: HTMLCanvasElement, opts: { onTile: (id: 
 	function targets(v: View): Map<number, T> {
 		const out = new Map<number, T>();
 		// real okeys (wildcards) sit upside down in the rack, like players flip them at a real table; false jokers stay upright
-		v.rack.forEach((id, k) => { if (id !== null) { const p = slotPos(k); if (id === v.sel) { p.y += 0.28; p.z -= 0.05; } out.set(id, { p, e: new THREE.Euler(TILT, 0, flipZ(id, v), 'YXZ') }); } });
+		v.rack.forEach((id, k) => { if (id !== null) { const p = slotPos(k); if (id === v.sel) { p.y += 0.2; p.z -= 0.04; } out.set(id, { p, e: new THREE.Euler(TILT, 0, flipZ(id, v), 'YXZ') }); } });
 		v.opp.forEach((hand, j) => {
 			const s = j + 1, n = hand.length, a = seatRot[s], r = 6.92;
 			hand.forEach((id, k) => {
@@ -169,13 +182,15 @@ export function createOkeyScene(canvas: HTMLCanvasElement, opts: { onTile: (id: 
 		}
 		// highlights: selection, okey tiles in the human rack, sets
 		for (const m of tiles) {
-			const id = m.userData.id as number, [side, , , , face] = m.material as THREE.MeshPhysicalMaterial[];
+			const id = m.userData.id as number, fr = m.getObjectByName('frame') as THREE.Mesh, ch = m.getObjectByName('chev') as THREE.Mesh;
 			const inRack = v.rack.includes(id);
+			// selection > set > okey; only the frame around the edges changes, never the tile's own materials
 			const c = id === v.sel ? '#36e27e' : v.sets.has(id) ? SET_TINT[v.sets.get(id)! % SET_TINT.length] : inRack && ttype(id) === v.okey ? '#ffb000' : null;
-			// tint the tile body; the face only gets a whisper so the numbers stay readable
-			const k = id === v.sel ? 0.55 : v.sets.has(id) ? 0.4 : 0.5; // okey: gold rim on the body, a whisper on the face
-			side.emissive.set(c ?? '#000'); side.emissiveIntensity = c ? k : 0;
-			face.emissive.set(c ?? '#000'); face.emissiveIntensity = c ? (id === v.sel ? 0.12 : 0.05) : 0;
+			fr.visible = c !== null; if (c) fr.material = frameMat(c);
+			// chevron pointing at the selected tile: above it on the top row (only felt there), below it in the gap the lift opens on
+			// the bottom row (so it never lands on a top-row face); screen-relative, so it flips with an upside-down okey
+			ch.visible = id === v.sel;
+			if (ch.visible) { const up = v.rack.indexOf(id) < ROW ? 1 : -1, fl = flipZ(id, v) !== 0 ? -1 : 1; ch.position.y = up * fl * (up > 0 ? TH / 2 + 0.3 : TH / 2 + 0.05); ch.rotation.z = up * fl > 0 ? 0 : Math.PI; }
 		}
 		for (const z of Object.keys(zones) as Zone[]) (zones[z].material as THREE.MeshStandardMaterial).emissiveIntensity = v.zones[z] ? 0.55 : 0.0;
 		strips.forEach((s, i) => ((s.material as THREE.MeshStandardMaterial).emissiveIntensity = v.turn === i ? 4.5 : 0));
@@ -277,6 +292,10 @@ export function createOkeyScene(canvas: HTMLCanvasElement, opts: { onTile: (id: 
 			return toScreen(zones[t.zone].position);
 		},
 		lastView: () => view,
+		/** Test hook: hide every highlight frame (to measure that frames never spill onto the face). */
+		/** Test hook: screen box (CSS px) of a tile's face. */
+		faceRect(id: number) { const m = tiles[id]; m.updateMatrixWorld(); const ps = [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([sx, sy]) => toScreen(new THREE.Vector3((sx * TW) / 2, (sy * TH) / 2, TD / 2).applyMatrix4(m.matrixWorld))); return { x0: Math.min(...ps.map((p) => p.x)), x1: Math.max(...ps.map((p) => p.x)), y0: Math.min(...ps.map((p) => p.y)), y1: Math.max(...ps.map((p) => p.y)) }; },
+		hideFrames() { for (const m of tiles) for (const c of m.children) c.visible = false; invalidate(); },
 		busy: () => tweens.length > 0 || dragging !== null,
 		/** Layout audit for the headless tests: tile boxes from different groups (rack, each opponent, pile, gösterge, each discard
 		 * corner) that intersect, and whether the gösterge's face centre is the first thing a camera ray hits (i.e. not covered). */

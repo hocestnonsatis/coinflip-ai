@@ -119,3 +119,15 @@ import { INK, IVORY } from '../src/lib/okey-ink.ts';
 	INK.forEach((c, i) => assert.ok(css.includes(`.c${i} { color: ${c}; }`), `2D CSS ink ${i} out of sync`));
 	console.log(`okey inks: contrast on ivory ${cr.map((c) => c.toFixed(2)).join(' / ')} (R/Y/B/K) · ΔE ${pairs.join(', ')}`);
 }
+
+// highlights never touch tile faces: no emissive on tile materials (3D), and 2D highlight rules only add borders
+{
+	const scene = readFileSync(new URL('../src/lib/okey-scene.ts', import.meta.url), 'utf8');
+	const mats = scene.slice(scene.indexOf('const tiles = Array.from'), scene.indexOf('const hitMat'));
+	assert.ok(!/emissive/.test(mats), '3D tile materials must not have emissive');
+	assert.ok(!/(face|side)\.(emissive|color|map)\b/.test(scene.slice(scene.indexOf('// highlights:'))), 'highlight code must not touch tile materials');
+	const css = readFileSync(new URL('../src/lib/OkeyApp.svelte', import.meta.url), 'utf8');
+	for (const m of css.matchAll(/^\s*([^{}\n]*\.tl[^{}\n]*\.(?:sel|set|okey|hot|hover)[^{}\n]*)\{([^}]*)\}/gm))
+		assert.ok(!/(^|;)\s*(background|color|filter|opacity|-webkit-text-stroke)\b/.test(m[2]), `2D highlight rule ${m[1].trim()} tints the face: ${m[2]}`);
+	console.log('okey highlights: frame-only (3D materials static, 2D borders only)');
+}

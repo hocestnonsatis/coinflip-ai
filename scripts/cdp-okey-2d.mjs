@@ -19,4 +19,13 @@ for (let k = 0; k < 25 && !got; k++) {
 }
 console.log('2D okey tile transform:', got, got && got.startsWith('matrix(-1') ? '(rotated 180°) OK' : 'FAIL');
 const r = await send('Page.captureScreenshot', { format: 'png' }); writeFileSync(out, Buffer.from(r.data, 'base64'));
-ch.kill(); process.exit(got && got.startsWith('matrix(-1') ? 0 : 1);
+// selection / set / okey highlights may only add a border: background, ink colour and filters must stay the tile's own
+const look = `(e) => { const c = getComputedStyle(e); return [c.backgroundImage, c.backgroundColor, c.color, c.filter, c.opacity, c.webkitTextStrokeColor].join(' | '); }`;
+const before = await ev(`(() => { const e = [...document.querySelectorAll('.rack2d .tl')].find((x) => !x.classList.contains('okey') && !x.classList.contains('fj')); e.dataset.probe = '1'; return (${look})(e); })()`);
+await ev(`document.querySelector('[data-probe]').click()`); await sleep(400);
+const after = await ev(`(() => { const e = document.querySelector('[data-probe]'); return [e.classList.contains('sel'), (${look})(e)]; })()`);
+const okeyLook = await ev(`(() => { const o = document.querySelector('.rack2d .tl.okey'), p = [...document.querySelectorAll('.rack2d .tl')].find((x) => !x.classList.contains('okey') && !x.classList.contains('fj') && !x.classList.contains('sel')); return [(${look})(o).split(' | ').filter((_, i) => i !== 2 && i !== 5), (${look})(p).split(' | ').filter((_, i) => i !== 2 && i !== 5)]; })()`);
+const selOk = after[0] && after[1] === before, okOk = JSON.stringify(okeyLook[0]) === JSON.stringify(okeyLook[1]);
+console.log('2D selected tile face unchanged:', selOk ? 'OK' : `FAIL (${before} → ${after[1]}, sel=${after[0]})`, '· okey face = plain face (ignoring ink):', okOk ? 'OK' : `FAIL ${JSON.stringify(okeyLook)}`);
+writeFileSync(out.replace(/\.png$/, '') + '-sel.png', Buffer.from((await send('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+ch.kill(); process.exit(got && got.startsWith('matrix(-1') && selOk && okOk ? 0 : 1);
