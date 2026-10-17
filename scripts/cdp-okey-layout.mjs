@@ -17,7 +17,7 @@ for (const [name, W, H] of VPS) {
 	const ev = async (e) => (await send('Runtime.evaluate', { expression: e, returnByValue: true, awaitPromise: true })).result?.value;
 	await send('Emulation.setDeviceMetricsOverride', { width: W, height: H, deviceScaleFactor: 1, mobile: W < 900 });
 	await send('Page.navigate', { url: `${origin}/tr/okey?test=win` });
-	for (let k = 0; k < 120 && !(await ev('!!window.__okeyUi && window.__okeyUi().phase === "discard"')); k++) await sleep(250);
+	for (let k = 0; k < 240 && !(await ev('!!window.__okey3d && !!window.__okeyUi && window.__okeyUi().phase === "discard"')); k++) await sleep(250);
 	await sleep(800); for (let k = 0; k < 80 && (await ev('window.__okey3d.busy()')); k++) await sleep(150); // let the deal animation settle
 	await sleep(300);
 	const real = await ev('window.__okey3d.audit()');
@@ -25,8 +25,11 @@ for (const [name, W, H] of VPS) {
 	await shot('');
 	const hud = await ev(`(() => { const e = document.querySelector('.hud'); const r = e.getBoundingClientRect(); return { text: e.innerText.replace(/\\s+/g, ' '), visible: r.width > 0 && r.top >= 0 && r.bottom <= innerHeight }; })()`);
 	// synthetic crowded table: reuse the live view's tiles, move 40 pile tiles into the four discard corners
-	const crowd = async (reveal) => ev(`(() => { const s = window.__okey3d, v = s.lastView(); const pile = v.pile.slice(); const discards = [0, 1, 2, 3].map(() => pile.splice(0, 10));
-		s.update({ ...v, pile, discards, reveal: ${reveal}, sel: null, turn: 1 }, false); return s.audit(); })()`);
+	// plus both real okeys (must sit upside down with a gold rim) and a false joker (upright) put into empty rack slots
+	const crowd = async (reveal) => ev(`(() => { const s = window.__okey3d, v = s.lastView(); const put = [v.okey * 2, v.okey * 2 + 1, 104], strip = (a) => a.filter((x) => !put.includes(x));
+		const rack = v.rack.map((x) => (put.includes(x) ? null : x)); put.forEach((id) => { const k = rack.lastIndexOf(null); rack[k] = id; });
+		const pile = strip(v.pile); const discards = [0, 1, 2, 3].map(() => pile.splice(0, 10)); const opp = v.opp.map(strip);
+		s.update({ ...v, rack, opp, pile, discards, reveal: ${reveal}, sel: null, turn: 1 }, false); return s.audit(); })()`);
 	const c1 = await crowd(false); await sleep(400); await shot('-crowded');
 	const c2 = await crowd(true); await sleep(400); await shot('-revealed');
 	const bad = (a) => !a || a.overlaps.length || !a.gostergeVisible || !a.gostergeInFreeArea;

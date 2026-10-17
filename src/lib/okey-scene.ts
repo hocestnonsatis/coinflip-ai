@@ -114,7 +114,8 @@ export function createOkeyScene(canvas: HTMLCanvasElement, opts: { onTile: (id: 
 	type T = { p: THREE.Vector3; e: THREE.Euler };
 	function targets(v: View): Map<number, T> {
 		const out = new Map<number, T>();
-		v.rack.forEach((id, k) => { if (id !== null) { const p = slotPos(k); if (id === v.sel) { p.y += 0.28; p.z -= 0.05; } out.set(id, { p, e: new THREE.Euler(TILT, 0, 0, 'YXZ') }); } });
+		// real okeys (wildcards) sit upside down in the rack, like players flip them at a real table; false jokers stay upright
+		v.rack.forEach((id, k) => { if (id !== null) { const p = slotPos(k); if (id === v.sel) { p.y += 0.28; p.z -= 0.05; } out.set(id, { p, e: new THREE.Euler(TILT, 0, flipZ(id, v), 'YXZ') }); } });
 		v.opp.forEach((hand, j) => {
 			const s = j + 1, n = hand.length, a = seatRot[s], r = 6.92;
 			hand.forEach((id, k) => {
@@ -134,6 +135,7 @@ export function createOkeyScene(canvas: HTMLCanvasElement, opts: { onTile: (id: 
 		}));
 		return out;
 	}
+	const flipZ = (id: number, v: View) => (id < 104 && ttype(id) === v.okey ? Math.PI : 0);
 	let view: View | null = null;
 	type Tween = { t0: number; dur: number; step: (u: number) => void; done: () => void };
 	const tweens: Tween[] = [];
@@ -160,7 +162,7 @@ export function createOkeyScene(canvas: HTMLCanvasElement, opts: { onTile: (id: 
 			const inRack = v.rack.includes(id);
 			const c = id === v.sel ? '#36e27e' : v.sets.has(id) ? SET_TINT[v.sets.get(id)! % SET_TINT.length] : inRack && ttype(id) === v.okey ? '#ffb000' : null;
 			// tint the tile body; the face only gets a whisper so the numbers stay readable
-			const k = id === v.sel ? 0.55 : v.sets.has(id) ? 0.4 : 0.35;
+			const k = id === v.sel ? 0.55 : v.sets.has(id) ? 0.4 : 0.5; // okey: gold rim on the body, a whisper on the face
 			side.emissive.set(c ?? '#000'); side.emissiveIntensity = c ? k : 0;
 			face.emissive.set(c ?? '#000'); face.emissiveIntensity = c ? (id === v.sel ? 0.12 : 0.05) : 0;
 		}
@@ -231,7 +233,7 @@ export function createOkeyScene(canvas: HTMLCanvasElement, opts: { onTile: (id: 
 		if (!down || down.id === null) return;
 		if (dragging === null && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 10) dragging = down.id;
 		if (dragging === null) return;
-		setRay(e); if (ray.ray.intersectPlane(dragPlane, hitPt)) { const m = tiles[dragging]; m.position.set(hitPt.x, 1.2, hitPt.z); m.quaternion.setFromEuler(new THREE.Euler(-0.6, 0, 0, 'YXZ')); invalidate(); }
+		setRay(e); if (ray.ray.intersectPlane(dragPlane, hitPt)) { const m = tiles[dragging]; m.position.set(hitPt.x, 1.2, hitPt.z); m.quaternion.setFromEuler(new THREE.Euler(-0.6, 0, view ? flipZ(dragging, view) : 0, 'YXZ')); invalidate(); }
 	};
 	const nearestSlot = (p: THREE.Vector3) => { let best = -1, bd = 1.2; slotHits.forEach((s, k) => { const d = Math.hypot(s.position.x - p.x, s.position.z - p.z); if (d < bd) { bd = d; best = k; } }); return best; };
 	const onUp = (e: PointerEvent) => {

@@ -432,6 +432,12 @@
 	.tl.okey { box-shadow: 0 0 0 2px #ffb000, 0 2px 4px #0008; }
 	.tl.sel { transform: translateY(-8px); box-shadow: 0 0 0 3px #36e27e, 0 6px 10px #000a; }
 	.tl.set { background: linear-gradient(180deg, #f2fff4, #cdeccf); }
+	/* rack tiles carry the ink dot under the number like real tiles, so an upside-down okey 6 / 9 stays unambiguous */
+	.rack2d .tl { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1; }
+	.rack2d .tl:not(.fj)::after { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; margin-top: 3px; }
+	/* real okeys in the rack are turned upside down (as at a real table) with a gold rim; false jokers stay upright */
+	.rack2d .tl.okey { transform: rotate(180deg); box-shadow: 0 0 0 2px #ffb000, 0 0 10px #ffb00088, 0 -2px 4px #0008; }
+	.rack2d .tl.okey.sel { transform: rotate(180deg) translateY(8px); box-shadow: 0 0 0 3px #36e27e, 0 0 10px #ffb00088; }
 	.flat { max-width: 760px; margin: 0 auto 12px; padding: 12px; border-radius: 16px; background: #1f3f2acc; box-shadow: 0 20px 60px #000a; }
 	.opps { display: flex; justify-content: space-between; gap: 6px; font-size: 12px; }
 	.opp { flex: 1; padding: 6px; border-radius: 10px; background: #00000040; text-align: center; } .opp.on { background: #ffcf5a; color: #1a1205; }
