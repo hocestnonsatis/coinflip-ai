@@ -335,7 +335,7 @@
 				{:else if phase === 'over'}<button class="primary" onclick={newGame}>{t.newGame}</button>{/if}
 				{#if phase === 'draw' || phase === 'discard' || phase === 'bots'}<button onclick={doArrange} title="A">{t.arrange}</button>{/if}
 			</div>
-			{#if result}<p class="res">{status}{#if result.finish?.kind === 'cift'} · {t.cift} {t.double}{/if}{#if result.finish?.okeyDiscard} · {t.okeyFinish} {t.double}{/if}</p>{/if}
+			{#if result?.finish && (result.finish.kind === 'cift' || result.finish.okeyDiscard)}<p class="res">{result.finish.kind === 'cift' ? t.cift : t.okeyFinish} {t.double}{#if result.finish.kind === 'cift' && result.finish.okeyDiscard} · {t.okeyFinish} {t.double}{/if}</p>{/if}
 			<div class="comment" aria-live="polite"><span class="who">{who || 'Okey‑257'}:</span> {shown}{#if streaming}<span class="cursor" aria-hidden="true">▍</span>{/if}</div>
 			{#if gstats}<div class="gstats" aria-live="polite">
 				<small>{ts.title}</small>
@@ -416,7 +416,7 @@
 	details ul { padding-left: 18px; margin: 8px 0 0; line-height: 1.5; opacity: 0.85; }
 	/* tiles (2D fallback + chips) */
 	.tl { display: inline-grid; place-items: center; width: 30px; height: 42px; border-radius: 5px; background: linear-gradient(180deg, #fbf6e6, #e2d6b6); font: 900 19px Georgia, serif; box-shadow: 0 2px 4px #0008, inset 0 -2px 0 #0002; user-select: none; vertical-align: middle; }
-	.tl.sm { width: 20px; height: 27px; font-size: 13px; border-radius: 4px; }
+	.tl.sm { width: 22px; height: 30px; font-size: 15px; border-radius: 4px; }
 	.c0 { color: #c4212b; } .c1 { color: #c98a00; } .c2 { color: #1f5fbf; } .c3 { color: #1a1a1a; } .fj { color: #1d6b3a; }
 	.tl.okey { box-shadow: 0 0 0 2px #ffb000, 0 2px 4px #0008; }
 	.tl.sel { transform: translateY(-8px); box-shadow: 0 0 0 3px #36e27e, 0 6px 10px #000a; }

@@ -97,9 +97,9 @@ export function createOkeyScene(canvas: HTMLCanvasElement, opts: { onTile: (id: 
 	const tileGeo = new RoundedBoxGeometry(TW, TH, TD, 2, 0.06);
 	const faces = Array.from({ length: 53 }, (_, t) => faceTex(t)), back = backTex();
 	const tiles = Array.from({ length: 106 }, (_, id) => {
-		const side = new THREE.MeshPhysicalMaterial({ color: '#efe6cf', roughness: 0.42, clearcoat: 0.4, emissive: new THREE.Color('#000'), emissiveIntensity: 0.6 });
-		const face = new THREE.MeshPhysicalMaterial({ map: faces[ttype(id)], roughness: 0.36, clearcoat: 0.5, emissive: new THREE.Color('#000'), emissiveIntensity: 0.6 });
-		const bk = new THREE.MeshPhysicalMaterial({ map: back, roughness: 0.45, clearcoat: 0.3 });
+		const side = new THREE.MeshPhysicalMaterial({ color: '#d6cbb0', roughness: 0.5, clearcoat: 0.25, emissive: new THREE.Color('#000'), emissiveIntensity: 0.6 });
+		const face = new THREE.MeshPhysicalMaterial({ map: faces[ttype(id)], color: '#e8e2d2', roughness: 0.4, clearcoat: 0.35, emissive: new THREE.Color('#000'), emissiveIntensity: 0.6 });
+		const bk = new THREE.MeshPhysicalMaterial({ map: back, color: '#cfc4a8', roughness: 0.5, clearcoat: 0.2 });
 		const m = new THREE.Mesh(tileGeo, [side, side, side, side, face, bk]); m.castShadow = true; m.receiveShadow = true; m.userData.id = id; m.visible = false;
 		m.rotation.order = 'YXZ'; scene.add(m); return m;
 	});
@@ -155,8 +155,10 @@ export function createOkeyScene(canvas: HTMLCanvasElement, opts: { onTile: (id: 
 			const id = m.userData.id as number, [side, , , , face] = m.material as THREE.MeshPhysicalMaterial[];
 			const inRack = v.rack.includes(id);
 			const c = id === v.sel ? '#36e27e' : v.sets.has(id) ? SET_TINT[v.sets.get(id)! % SET_TINT.length] : inRack && ttype(id) === v.okey ? '#ffb000' : null;
-			const k = id === v.sel ? 0.45 : v.sets.has(id) ? 0.3 : 0.22;
-			for (const mat of [side, face]) { mat.emissive.set(c ?? '#000'); mat.emissiveIntensity = c ? k : 0; }
+			// tint the tile body; the face only gets a whisper so the numbers stay readable
+			const k = id === v.sel ? 0.55 : v.sets.has(id) ? 0.4 : 0.35;
+			side.emissive.set(c ?? '#000'); side.emissiveIntensity = c ? k : 0;
+			face.emissive.set(c ?? '#000'); face.emissiveIntensity = c ? (id === v.sel ? 0.12 : 0.05) : 0;
 		}
 		for (const z of Object.keys(zones) as Zone[]) (zones[z].material as THREE.MeshStandardMaterial).emissiveIntensity = v.zones[z] ? 0.55 : 0.0;
 		strips.forEach((s, i) => ((s.material as THREE.MeshStandardMaterial).emissiveIntensity = v.turn === i ? 2.2 : 0));
@@ -171,7 +173,7 @@ export function createOkeyScene(canvas: HTMLCanvasElement, opts: { onTile: (id: 
 	function keyPoints(portrait: boolean) {
 		const pts: THREE.Vector3[] = [];
 		for (const x of [-RX / 2, RX / 2]) for (const [y, z] of [[1.5, 5.6], [0, 7.6]]) pts.push(new THREE.Vector3(x, y, z));
-		if (portrait) pts.push(new THREE.Vector3(0, 0, -7.2), new THREE.Vector3(-4.6, 0, 0), new THREE.Vector3(4.6, 0, 0), new THREE.Vector3(0, 1.6, -5.6));
+		if (portrait) pts.push(new THREE.Vector3(0, 0, -7.2), new THREE.Vector3(-4.6, 0, 0), new THREE.Vector3(4.6, 0, 0), new THREE.Vector3(0, 1.6, -7.2));
 		else pts.push(new THREE.Vector3(0, 0, -7.6), new THREE.Vector3(-7.6, 0, 0), new THREE.Vector3(7.6, 0, 0), new THREE.Vector3(0, 1.8, -7.4), new THREE.Vector3(-7.4, 1.8, 0), new THREE.Vector3(7.4, 1.8, 0));
 		return pts;
 	}

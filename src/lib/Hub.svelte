@@ -6,18 +6,21 @@
 	import { SITE, REPO, HF_TAVLA, pathFor, urlFor, setLangPref } from '#lib/site';
 	import Seo from './Seo.svelte';
 	import { STATS } from '#lib/tavla-stats';
+	import { STATS as OKS } from '#lib/okey-stats';
 
 	let { data }: { data: { lang: Lang | null } } = $props();
 	const initialLang = (() => data.lang ?? 'en')();
 	let lang = $state<Lang>(initialLang);
 	const h = $derived(HUB[lang]);
-	type Item = { key: 'coin' | 'dice' | 'tavla' | 'rps' | 'ball'; params: number; card: HubCard; href?: string };
+	type Item = { key: 'coin' | 'dice' | 'tavla' | 'okey' | 'rps' | 'ball'; params: number; card: HubCard; href?: string };
 	const pc = $derived(new Intl.NumberFormat(lang, { style: 'percent', maximumFractionDigits: 1 }));
 	const tavlaCard = $derived<HubCard>({ ...h.tavla, stats: h.tavla.stats.map(([k, v]) => [k, v.replace('{r}', pc.format(STATS.vsRandom.w / Math.max(STATS.vsRandom.n, 1))).replace('{h}', pc.format(STATS.vsHeur.w / Math.max(STATS.vsHeur.n, 1))).replace('{kb}', `${(STATS.onnxBytes / 1024).toLocaleString(lang, { maximumFractionDigits: 1 })} KB`)] as [string, string]) });
+	const okeyCard = $derived<HubCard>({ ...h.okey, stats: h.okey.stats.map(([k, v]) => [k, v.replace('{r}', pc.format(OKS.vsRandom.w / Math.max(OKS.vsRandom.n, 1))).replace('{g}', pc.format(OKS.vsGreedy.w / Math.max(OKS.vsGreedy.n, 1))).replace('{kb}', `${(OKS.onnxBytes / 1024).toLocaleString(lang, { maximumFractionDigits: 1 })} KB`)] as [string, string]) });
 	const items = $derived<Item[]>([
 		{ key: 'coin', params: 1, card: h.coin, href: pathFor(lang, 'coin') },
 		{ key: 'dice', params: 6, card: h.dice, href: pathFor(lang, 'dice') },
 		{ key: 'tavla', params: STATS.params, card: tavlaCard, href: pathFor(lang, 'tavla') },
+		{ key: 'okey', params: OKS.params, card: okeyCard, href: pathFor(lang, 'okey') },
 		{ key: 'rps', params: 3, card: h.rps },
 		{ key: 'ball', params: 20, card: h.ball }
 	]);
@@ -57,6 +60,7 @@
 					{#if it.key === 'coin'}<div class="coin"><span>1P</span></div>
 					{:else if it.key === 'dice'}<div class="cube">{#each [1, 2, 3, 4, 5, 6] as f (f)}<div class="f f{f}">{#each Array(f) as _, i (i)}<i></i>{/each}</div>{/each}</div>
 					{:else if it.key === 'tavla'}<div class="tavla"><i></i><i></i><i></i><i></i><b></b><b></b></div>
+					{:else if it.key === 'okey'}<div class="okeyi"><i class="r">3</i><i class="y">4</i><i class="b">5</i><i class="k">★</i></div>
 					{:else if it.key === 'rps'}<div class="hands"><span>✊</span><span>✋</span><span>✌️</span></div>
 					{:else}<div class="ball"><span>8</span></div>{/if}
 				</div>
@@ -129,12 +133,16 @@
 	@keyframes tumble { from { transform: rotateX(-20deg) rotateY(0) rotateZ(10deg); } to { transform: rotateX(340deg) rotateY(360deg) rotateZ(370deg); } }
 	.hf { display: block; text-align: center; font-size: 11px; color: #ffd36b; text-decoration: none; margin: 0 0 8px; opacity: 0.85; }
 	.hf:hover { opacity: 1; text-decoration: underline; }
+	.okeyi { width: 78px; height: 50px; border-radius: 6px; background: linear-gradient(180deg, #7a4a26, #4a2a12); display: flex; gap: 2px; align-items: flex-start; justify-content: center; padding-top: 4px; box-sizing: border-box; box-shadow: inset 0 -10px 0 #3a2010; }
+	.okeyi i { font-style: normal; width: 17px; height: 26px; border-radius: 3px; background: linear-gradient(180deg, #fbf6e6, #e2d6b6); display: grid; place-items: center; font: 900 13px Georgia, serif; box-shadow: 0 2px 3px #0008; animation: lift 2.4s ease-in-out infinite; animation-delay: calc(var(--d, 0) * 0.2s); }
+	.okeyi .r { color: #c4212b; } .okeyi .y { color: #c98a00; --d: 1; } .okeyi .b { color: #1f5fbf; --d: 2; } .okeyi .k { color: #1d6b3a; --d: 3; }
 	.tavla { width: 74px; height: 56px; border-radius: 6px; background: #5a321a; border: 3px solid #2a160a; position: relative; display: flex; justify-content: space-around; overflow: hidden; }
 	.tavla i { width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-top: 26px solid #e9d7ae; }
 	.tavla i:nth-child(even) { border-top-color: #8f2d22; }
 	.tavla b { position: absolute; width: 14px; height: 14px; border-radius: 50%; bottom: 4px; left: 12px; background: radial-gradient(circle at 40% 35%, #fffaf0, #d9c7a0); box-shadow: 0 2px 3px #0008; }
 	.tavla b + b { left: 44px; background: radial-gradient(circle at 40% 35%, #6b2a22, #2a0d09); animation: hop 2.4s ease-in-out infinite; }
 	@keyframes hop { 50% { transform: translate(-16px, -26px); } }
+	@keyframes lift { 50% { transform: translateY(-5px); } }
 	.hands { position: relative; width: 70px; height: 70px; font-size: 52px; }
 	.hands span { position: absolute; inset: 0; display: grid; place-items: center; opacity: 0; animation: rps 3s infinite; }
 	.hands span:nth-child(2) { animation-delay: 1s; } .hands span:nth-child(3) { animation-delay: 2s; }
@@ -142,5 +150,5 @@
 	.ball { width: 74px; height: 74px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #555, #111 55%, #000); box-shadow: 0 10px 24px #000a; display: grid; place-items: center; animation: shake 2.8s ease-in-out infinite; }
 	.ball span { width: 30px; height: 30px; border-radius: 50%; background: #f3efe6; color: #111; display: grid; place-items: center; font: 900 18px Georgia, serif; }
 	@keyframes shake { 0%, 70%, 100% { transform: rotate(0); } 75% { transform: rotate(-12deg); } 85% { transform: rotate(10deg); } 92% { transform: rotate(-5deg); } }
-	@media (prefers-reduced-motion: reduce) { .coin, .cube, .hands span, .ball { animation: none; } .hands span:first-child { opacity: 1; } }
+	@media (prefers-reduced-motion: reduce) { .coin, .cube, .hands span, .ball, .okeyi i, .tavla b { animation: none; } .hands span:first-child { opacity: 1; } }
 </style>
