@@ -41,3 +41,36 @@ const t0 = performance.now(); let n = 0;
 for (const r of fx) for (let k = 0; k < 3; k++) { const [c, w] = counts(r.h, (r.o + k) % 52); cover(c, w); n++; }
 console.log(`okey solver: ${((performance.now() - t0) / n).toFixed(3)} ms per 14-tile hand`);
 console.log('okey ok');
+
+// model: TS fallback forward == onnxruntime (tests/okey-model.json from scripts/build-onnx-okey.py)
+import { forwardTs } from '../src/lib/okey-net.ts';
+import { chooseDraw as cd, chooseDiscard as cx } from '../src/lib/okey-bot.ts';
+const chooseDraw = (g: OkeyGame, s: number) => cd(g, s, forwardTs), chooseDiscard = (g: OkeyGame, s: number) => cx(g, s, forwardTs);
+import { OkeyGame, randInt } from '../src/lib/okey-game.ts';
+const mf = JSON.parse(readFileSync(new URL('./okey-model.json', import.meta.url), 'utf8'));
+let mw = 0;
+for (const r of mf) mw = Math.max(mw, Math.abs(forwardTs(Float32Array.from(r.x), 1)[0] - r.p));
+assert.ok(mw < 1e-5, `model mismatch ${mw}`);
+console.log(`okey model: TS forward vs onnxruntime max |Δ| ${mw.toExponential(1)}`);
+
+// full games with the TS bots on all four seats (game flow, finishing, pile exhaustion)
+{
+	const t0 = performance.now(); let wins = 0, draws = 0, turns = 0; const N = 40;
+	for (let k = 0; k < N; k++) {
+		const g = new OkeyGame();
+		assert.equal(g.hands.reduce((a, h) => a + h.length, 0) + g.pile.length + 1, 106);
+		assert.equal(g.pile.length, 48);
+		for (;;) {
+			const s = g.turn;
+			if (g.needsDraw(s)) { if (g.exhausted) { draws++; break; } const d = await chooseDraw(g, s); if (d.take) g.takeDiscard(s); else g.drawPile(s); }
+			const c = await chooseDiscard(g, s); g.discard(s, c.tile, c.finish);
+			if (g.winner !== null) { wins++; assert.ok(g.finish); break; }
+		}
+		turns += g.turns;
+	}
+	console.log(`okey TS self-play: ${N} games, ${wins} won, ${draws} pile-out, ${(turns / N).toFixed(1)} turns, ${((performance.now() - t0) / N).toFixed(0)} ms/game`);
+	assert.ok(wins > N / 2);
+}
+// crypto shuffle is uniform-ish
+{ const h = new Array(7).fill(0); for (let i = 0; i < 70000; i++) h[randInt(7)]++; for (const x of h) assert.ok(Math.abs(x - 10000) < 500); }
+console.log('okey game ok');
