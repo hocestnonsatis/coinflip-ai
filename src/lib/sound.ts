@@ -5,14 +5,14 @@
 // scheduled a few ms ahead of the audio clock, and slightly randomised (pitch, timing) so repeats don't sound mechanical.
 
 export const MUTE_KEY = 'tm-sound-muted';
-const MASTER = 0.6;
+const MASTER = 0.75;
 /** schedule this far ahead of ctx.currentTime: on Windows (WASAPI) the clock advances in coarse chunks, so "now" is often
  *  already in the past when the graph is rendered, which clipped the attack of short clacks or swallowed them entirely */
 const LOOK = 0.03;
 /** per-sound output level in dB (tuned with scripts/cdp-sound-render.mjs: main hits peak ≈ -10..-6 dBFS) */
 export const LEVEL: Record<string, number> = {
 	tick: 6, nope: 4, win: 5, lose: 5, draw: 5, coinFlip: 9, spinTick: 6, coinLand: 5, coinOdd: 6, sparkle: 6,
-	rattle: 3, diceLand: 3, checker: 2, hit: 6, bearOff: 6, tilePick: 7, tileDrop: 6, slide: 8, shuffle: 6
+	rattle: 3, diceLand: 3, checker: 2, hit: 6, bearOff: 6, tilePick: 5, tileDrop: 6, slide: 8, shuffle: 6
 };
 let trim = 1;
 
