@@ -55,3 +55,18 @@ for (const [l, d] of Object.entries(TAVLA_STATS)) {
 }
 assert.equal(TAVLA_STATS.tr.line('12.345', 12345, '6.000', '6.345'), 'Bugüne kadar 12.345 oyun oynandı · İnsanlar 6.000 · Model 6.345');
 console.log('tavla stats ok');
+
+// okey tickets: separate HMAC domain, draw allowed, own plausibility rules
+import { RULES_OKEY } from '../src/lib/server/tavla-stats-core.ts';
+{
+	const ok = await issueTicket(S, now, 'okey');
+	assert.equal(await verifyTicket(S, ok.gameId, 'tavla'), null, 'okey ticket is not a tavla ticket');
+	assert.equal(await verifyTicket(S, gameId, 'okey'), null, 'tavla ticket is not an okey ticket');
+	const later2 = now + 60_000, body = { winner: 'draw', moves: 60, gameId: ok.gameId };
+	assert.ok((await checkResult(S, body, later2, 'okey', RULES_OKEY)).ok, 'okey draw');
+	assert.ok((await checkResult(S, { ...body, winner: 'model' }, later2, 'okey', RULES_OKEY)).ok);
+	assert.ok(!(await checkResult(S, { ...body, winner: 'draw', gameId }, later2, 'tavla')).ok, 'no draws in tavla');
+	const c = await checkResult(S, body, now + RULES_OKEY.minMs - 1, 'okey', RULES_OKEY); assert.ok(!c.ok && c.status === 422);
+	const c2 = await checkResult(S, { ...body, moves: 3 }, later2, 'okey', RULES_OKEY); assert.ok(!c2.ok && c2.status === 422);
+	console.log('okey stats tickets ok');
+}

@@ -74,3 +74,31 @@ console.log(`okey model: TS forward vs onnxruntime max |Δ| ${mw.toExponential(1
 // crypto shuffle is uniform-ish
 { const h = new Array(7).fill(0); for (let i = 0; i < 70000; i++) h[randInt(7)]++; for (const x of h) assert.ok(Math.abs(x - 10000) < 500); }
 console.log('okey game ok');
+
+// istaka helpers: auto-arrange lays out every tile once, each chunk is a valid set, and the set count matches the solver
+import { arrange, partition, orderSet, move, placeNew, remove, SLOTS } from '../src/lib/okey-rack.ts';
+import { counts as cnt, cover as cov2, ttype as tt } from '../src/lib/okey-engine.ts';
+{
+	let checked = 0;
+	for (let k = 0; k < 400; k++) {
+		const g = new OkeyGame(0), h = g.hands[0].slice(0, 14 + (k & 1));
+		const r = arrange(h, g.okey); assert.equal(r.length, SLOTS);
+		assert.deepEqual(r.filter((x) => x !== null).sort((a, b) => a! - b!), h.slice().sort((a, b) => a - b));
+		const p = partition(h, g.okey); const [c, w] = cnt(h, g.okey);
+		const inSets = p.sets.reduce((a, s) => a + s.length, 0);
+		for (const s of p.sets) { const [sc, sw] = cnt(s, g.okey); assert.equal(cov2(sc, sw), s.length, 'every chunk is a valid set'); checked++; }
+		assert.ok(inSets <= cov2(c, w) && inSets >= cov2(c, w) - w, 'partition covers the optimum (leftover wilds may float)');
+		// each set sits in consecutive slots of one row, in display order
+		for (const s of p.sets) { const at = s.map((id) => r.indexOf(id)); at.forEach((x, j) => j && assert.equal(x, at[0] + j)); assert.equal(Math.floor(at[0] / 13), Math.floor(at.at(-1)! / 13)); }
+	}
+	assert.deepEqual(orderSet([5, 4, -1]), [4, 5, -1]); // red 5,6 + wild → 5-6-(7)
+	assert.deepEqual(orderSet([0, 12, 11]), [11, 12, 0]); // 12-13-1
+	assert.deepEqual(orderSet([0, 2, -1]), [0, -1, 2]); // 1-(2)-3
+	assert.deepEqual(orderSet([3, 3 + 13, 3 + 39]), [3, 16, 42]); // group
+	let rk = placeNew(new Array(SLOTS).fill(null), 7); assert.equal(rk[SLOTS - 1], 7);
+	rk = placeNew(rk, 9); assert.equal(rk[SLOTS - 2], 9);
+	rk = move(rk, 7, 0); assert.equal(rk[0], 7); assert.equal(rk[SLOTS - 1], null);
+	rk = move(rk, 9, 0); assert.equal(rk[0], 9); assert.equal(rk[SLOTS - 2], 7, 'swap');
+	rk = remove(rk, 9); assert.equal(rk.filter((x) => x !== null).length, 1);
+	void tt; console.log(`okey rack ok (${checked} arranged sets verified)`);
+}

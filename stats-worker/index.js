@@ -3,7 +3,8 @@
 // this Worker itself serves nothing public.
 import { DurableObject } from 'cloudflare:workers';
 
-const KEYS = ['games', 'human', 'model', 'humanGammons', 'modelGammons'];
+const KEYS = ['games', 'human', 'model', 'humanGammons', 'modelGammons', 'draw'];
+// One object per game: idFromName('global') = tavla (historical name), idFromName('okey') = okey ('model' = any bot, 'draw' = pile ran out).
 
 export class TavlaStats extends DurableObject {
 	constructor(ctx, env) {
