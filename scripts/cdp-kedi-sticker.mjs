@@ -27,13 +27,14 @@ async function newRoundIfOver(b) { if ((await ui(b)).phase === 'over') await tap
 async function finish(b, shot) {
 	await b.waitFor('window.__kediUi().queued === 0', 180000);
 	await tap(b, 'button.primary');
-	if (!(await b.waitFor('window.__kediUi().phase === "over"', 120000))) throw new Error('never finished');
+	if (!(await b.waitFor('window.__kediUi().phase === "over"', 300000))) throw new Error(`never finished (phase ${(await ui(b)).phase})`);
 	await sleep(1500); if (shot) await b.shot(shot);
 	return ui(b);
 }
 // sticker buttons: .st row 0 = per slot (0..2), row 1 = all / empty / clear
 const stickSlot = (b, k) => tap(b, '.st button', k), stickAll = (b) => tap(b, '.st button', 3), stickEmpty = (b) => tap(b, '.st button', 4), peel = (b) => tap(b, '.st button', 5);
-async function play(b, name, { slot, before = [], after = null, n = 6, speed = 0.5, hand = 0, shot = null }) {
+async function play(b, name, o) { try { return await play1(b, name, o); } catch (e) { out.errors.push(`${name}: ${e.message}`); out.rounds.push({ name, error: e.message, phase: (await ui(b)).phase, cheated: true }); } }
+async function play1(b, name, { slot, before = [], after = null, n = 6, speed = 0.5, hand = 0, shot = null }) {
 	await newRoundIfOver(b);
 	if ((await ui(b)).stick.some(Boolean)) await peel(b);
 	for (const k of before) await stickSlot(b, k);

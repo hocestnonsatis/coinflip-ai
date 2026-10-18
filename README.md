@@ -64,6 +64,10 @@ Oyuncağı üç bardaktan birinin altına sakla, istediğin kadar karıştır (t
   - aynalanmış kamera → aynalanmış cevap (240/240);
   - saklamadan sonra oyuncak her kareden silinse bile doğru (135/135); yani oyuncağı değil bardakları izliyor.
   Beklediğim gibi hızlı karıştırmada şaşırmadı. Bu sahnede ve bu kamerayla ise gerçekten çözülmüş bir görev. Başka bardak, ışık ya da açı görse kör olur.
+- **🎭 Hile: sahte top çıkartması.** İstersen bardakların kedi tarafına oyuncağın düz bir resmini yapıştırırsın: bir bardağa, hepsine ya da boş olanlara, saklamadan önce veya sonra. Sen görmezsin, sol üstteki "kedinin gözü" penceresinde (modelin aldığı gerçek 64×32 kareler) görürsün. Model yeniden eğitilmedi, çıkartmayı hiç görmedi. Ölçüm (7 düzen × eğitimde görülmeyen 60 tur, `train-cat/eval_stick.py`):
+  - boş bir bardak (önce / sonra), iki boş bardak, üç bardak (önce / sonra), oyuncağın kendi bardağı (önce / sonra): her düzende **60/60 doğru**;
+  - toplamda **420/420**, çıkartmaya **0 kez** kandı.
+  Kedi oyuncağı saklama anında masada görüp sonra bardağın hareketini izliyor; kıpırdamayan bir resim ona kanıt vermiyor. Hileli turlar küresel sayaca yazılmaz.
 - **Tüm zamanlar sayacı:** aynı Durable Object sınıfının `kedi` örneği: `GET /api/kedi/stats`, `POST /api/kedi/start`, `POST /api/kedi/result` `{winner: human|model, moves, gameId}`.
 - Ağırlıkları ileride Hugging Face'te yayımlayabilirim (henüz yok).
 - Yeniden üret: `node scripts/cdp-kedi-datagen.mjs http://localhost:5181 train-cat/data 2 2400 1000000`, `python3 train-cat/train.py train --epochs 40`, `python3 train-cat/export.py train-cat/ckpt/last.pt && python3 train-cat/eval.py train-cat/ckpt/last.pt`.
@@ -111,6 +115,7 @@ python3 scripts/build-onnx.py && python3 scripts/build-onnx-dice.py   # ONNX mod
     - mirrored camera → mirrored answer 240/240;
     - toy erased from every frame after the hide → still right 135/135, so it tracks the cups, not the toy.
   - I expected fast shuffles to fool it; they don't. Within this scene and camera the task is solved, but other cups, lights or angles would blind it.
+  - **🎭 Cheat: fake toy sticker.** Stick a flat picture of the toy on the cat‑facing side of one cup, all cups or the empty ones, before or after the hide. You only see it in the "cat's eye" inset, which shows the real 64×32 frames the model gets. The model was not retrained and never saw a sticker. Measured on 7 configs × 60 unseen rounds (`train-cat/eval_stick.py`): **60/60 in every config, 420/420 overall, fooled 0 times**. The cat locates the toy while it is hidden, then tracks cup motion, and a picture that never moves gives it no evidence. Cheated rounds are not counted.
   - Counter: `/api/kedi/{stats,start,result}`. Weights may go to Hugging Face later. Notes: `train-cat/NOTES.md`.
 - ✊ RockPaperScissors‑3P and 🎱 Magic8Ball‑20P: coming soon.
 
