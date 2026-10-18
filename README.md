@@ -12,6 +12,7 @@
 | 🎲 **DiceRoll‑6P** | 6 | %16,7 (SOTA) | [/dice](https://tiny-models.anil-oz.workers.dev/dice) |
 | 🎯 **Tavla‑1.6K** | 1.601 | rastgeleye karşı %99,7 · sezgisel bota karşı %75,3 | [/tavla](https://tiny-models.anil-oz.workers.dev/tavla) |
 | 🀄 **Okey‑257** | 257 | 3 rastgele bota karşı %93,4 · 3 açgözlü bota karşı %24,0 (taban %25) | [/okey](https://tiny-models.anil-oz.workers.dev/okey) |
+| 🐱 **Kedi‑27K** | 27.044 | bardak takibi: ayrı test turlarında %100 (240/240), hız × değişim tablosu 900/900 (taban %33,3) | [/kedi](https://tiny-models.anil-oz.workers.dev/kedi) |
 | ✊ RockPaperScissors‑3P | 3 | yakında | — |
 | 🎱 Magic8Ball‑20P | 20 | yakında | — |
 
@@ -51,6 +52,22 @@ Sen + 3 bot. 106 taş (4 renk × 1–13 × 2 + 2 sahte okey), 14/15 dağıtım, 
 - **Tüm zamanlar sayacı:** aynı `tiny-models-stats` Durable Object sınıfının ayrı `okey` örneği. `GET /api/okey/stats`, `POST /api/okey/start`, `POST /api/okey/result` `{winner: human|model|draw, moves, gameId}` (okey'e özel HMAC bileti, bilet başına bir kez, ≥20 sn, 4–400 atış, IP başına saatte 40 başlatma / 30 sonuç).
 - Yeniden üret: `cd train-okey && for k in 0 1 2 3 4 5 6; do python3 datagen.py $k 10 & done; wait; python3 fit.py best.npz 20 && python3 evaluate.py best.npz 4000 0.03`, sonra `python3 scripts/build-onnx-okey.py train-okey/best.npz 0.03`.
 
+### Kedi‑27K (bardak oyunu, sadece pikseller)
+Oyuncağı üç bardaktan birinin altına sakla, istediğin kadar karıştır (tıkla‑tıkla, sürükle ya da "rastgele karıştır ×N" + hız kaydırıcısı), sonra "Kedi, nerede?" de. Kedi patisiyle bir bardağa dokunur, bardak kalkar.
+- **Dürüstlük:** model **sadece kedi kamerasının piksellerini** görür. Sabit bir kamera, sahnenin 64×32 gri görüntüsü, oyun zamanında 30 kare/sn; bir öncekinin aynısı olan kareler atlanır. Oyun durumu, değişim olayları ya da bardak konumları modele hiç verilmez; başlangıç bardağı da verilmez, kedi saklamayı izleyerek öğrenir. Kedi, seçim halkası ve kedinin gölgesi ayrı bir katmanda, kamera onları görmez. `tests/kedi.test.ts` model kodunun sahne ve animasyon modüllerine dokunmadığını, modele giden tek girdinin kamera karesi olduğunu denetler.
+- **Model:** küçük CNN (2→8→16→16 kanal; girdi = kare ve bir önceki kareyle farkı) → 32 özellik → GRU(32) → her adımda 3×3 bardak geçiş matrisi + 3 kanıt logiti. İnanç güncellemesi: `b_t ∝ (b_{t-1}·T_t) ⊙ exp(e_t)`. **27.044 parametre**, ONNX 111 KB, tarayıcıda kare başına ≈1 ms (WASM).
+- **Eğitim verisi:** aynı three.js sahnesi ve aynı kedi kamerasıyla headless Chrome'da render edilen 2.003 rastgele tur, 561.703 kare. Hız, değişim sayısı (0–40), elle/karışık değişim düzeni ve ışık rastgele. PyTorch (CPU), 40 epoch ≈ 94 dk × 4 iş parçacığı, her karede çapraz entropi. Ayrıntı ve yeniden üretim: `train-cat/NOTES.md`.
+- **Değerlendirme** (eğitimde ve checkpoint seçiminde hiç kullanılmayan turlar):
+  - rastgele turlar **%100** (240/240);
+  - hız × değişim tablosu (9 değişim sayısı × 5 hız, 752 ms…164 ms/değişim, hücre başına 20 tur) **900/900**, 30 değişimde ve en yüksek hızda dahil;
+  - boş/sabit kamera → olasılıklar %29,5–%36,1 arasında kalır;
+  - aynalanmış kamera → aynalanmış cevap (240/240);
+  - saklamadan sonra oyuncak her kareden silinse bile doğru (135/135); yani oyuncağı değil bardakları izliyor.
+  Beklediğim gibi hızlı karıştırmada şaşırmadı. Bu sahnede ve bu kamerayla ise gerçekten çözülmüş bir görev. Başka bardak, ışık ya da açı görse kör olur.
+- **Tüm zamanlar sayacı:** aynı Durable Object sınıfının `kedi` örneği: `GET /api/kedi/stats`, `POST /api/kedi/start`, `POST /api/kedi/result` `{winner: human|model, moves, gameId}`.
+- Ağırlıkları ileride Hugging Face'te yayımlayabilirim (henüz yok).
+- Yeniden üret: `node scripts/cdp-kedi-datagen.mjs http://localhost:5181 train-cat/data 2 2400 1000000`, `python3 train-cat/train.py train --epochs 40`, `python3 train-cat/export.py train-cat/ckpt/last.pt && python3 train-cat/eval.py train-cat/ckpt/last.pt`.
+
 Coin ve dice'ta: 3D sahne (three.js, ahşap masa, lamba ışığı), LLM gibi token token akan yorumlar, sonucu kopyalama, 👍/👎 geri bildirim (RLHF parodisi), model kartı, 5 dil, `prefers-reduced-motion` desteği.
 
 ## Teknoloji
@@ -82,6 +99,19 @@ python3 scripts/build-onnx.py && python3 scripts/build-onnx-dice.py   # ONNX mod
 - 🎲 **DiceRoll‑6P** (`/dice`): 6 parameters (one bias per face, all 1/6), `softmax((g + b) · 1.0)` over Gumbel noise, 16.7% accuracy (SOTA). Answers 1–6; confidence = softmax max; exactly uniform faces (see `npm test`).
 - 🎯 **Tavla‑1.6K** (`/tavla`): a *really trained* TD‑Gammon‑style backgammon net. Tesauro 198‑input encoding → 8 sigmoid hidden → 1 sigmoid (win probability): **1,601 parameters**, 6.6 KB ONNX. Trained by TD(λ=0.7) self‑play in pure numpy (`train/td.py`): 8 configs × 95 min in parallel on CPU, the shipped one played **381,954 games**. Held‑out eval, 5,000 games each: **99.7%** vs a random player, **75.3%** vs a pip‑count heuristic bot. Rules engine in Python (`train/bg.py`) and TS (`src/lib/tavla-engine.ts`), cross‑checked on 1,500 random positions (identical legal move sets); bar entry, hitting, bearing off, must‑use‑both / larger‑die, doubles; no doubling cube. In the browser: 1‑ply search, all legal moves scored in one ONNX `session.run`, TS fallback. 🤗 Model on Hugging Face: https://huggingface.co/hocestnonsatis/tavla-1.6k. **All‑time counter:** a global scoreboard (games, human / model wins, gammons) stored in one SQLite‑backed Durable Object in the small `stats-worker/` Worker (**tiny-models-stats**, Workers Free compatible), bound via `script_name`. API: `GET /api/tavla/stats`, `POST /api/tavla/start` (HMAC‑signed game ticket), `POST /api/tavla/result` `{winner, gammon, moves, gameId}` (once per ticket, ≥30 s, 13–2000 turns, 60 starts / 30 results per IP per hour). `?pos=` test games are never counted. Deploy the stats Worker first: `cd stats-worker && npx wrangler deploy`; secrets `TAVLA_SECRET`, `TAVLA_ADMIN`.
 - 🀄 **Okey‑257** (`/okey`): classic 4‑player Turkish okey, you vs 3 bots. Rules engine + exact set‑partition solver (wildcards, 12‑13‑1 runs, groups, 7 pairs) in Python (`train-okey/okey.py`) and TS (`src/lib/okey-engine.ts`), 0 mismatches vs brute force on 3,000 hands and identical TS↔Python results on 1,313 hands. Value net 14 hand features → 16 tanh → 1 sigmoid = **257 parameters** (1.4 KB ONNX), used 1‑ply (each discard scored in one `session.run`; pile draw valued by 8 sampled unseen tiles). Trained supervised in numpy on 1,467,046 positions from ≈46k greedy‑solver bot games (label = did this player win), ≈20 min × 7 CPU processes; pure TD self‑play from scratch was weak and one policy‑iteration round gave no gain. Held‑out eval (4,000 games each, model in seat 0, 25% baseline): **93.4%** vs 3 random bots, **24.0%** vs 3 greedy solver bots (the greedy bot itself scores 25.0% there) — i.e. on par with the greedy solver, not better. Full‑screen three.js table with a 2D fallback, drag/click rack, auto‑arrange, Finish validation with set highlight, streamed commentary with the bots' real estimates. All‑time counter: `GET /api/okey/stats`, `POST /api/okey/start`, `POST /api/okey/result` (own HMAC ticket kind, once per ticket, ≥20 s, 4–400 discards); `?test=win` games aren't counted. Notes: `train-okey/NOTES.md`.
+- 🐱 **Kedi‑27K** (`/kedi`): the shell game against a cat.
+  - **How to play:** hide the toy under one of three cups, then shuffle as much as you like (click‑click, drag, or "random shuffle ×N" with a speed slider). Then ask the cat; it taps a cup with its paw.
+  - **Pixels only:** the model sees nothing but the cat camera, a fixed 64×32 grayscale view at 30 frames/s of game time, with identical frames dropped. It gets no game state, swap events or cup positions, not even the starting cup: it watches you hide the toy. The cat itself, the selection ring and the cat's shadow are on a layer the camera cannot see. `tests/kedi.test.ts` checks the wiring.
+  - **Model:** tiny CNN on the frame and the frame difference → GRU(32) → a per‑step 3×3 cup transition matrix plus evidence (belief update `b_t ∝ (b_{t-1}·T_t) ⊙ exp(e_t)`). **27,044 parameters**, 111 KB ONNX, ≈1 ms per frame in WASM.
+  - **Training:** 2,003 random rounds / 561,703 frames rendered by the same three.js scene in headless Chrome. Speed, swap count (0–40), hand vs burst swaps and lighting are randomised. PyTorch CPU, 40 epochs ≈ 94 min × 4 threads.
+  - **Held‑out results:**
+    - **100%** on random rounds (240/240);
+    - **900/900** on the swaps × speed grid (9 swap counts × 5 speeds from 752 ms down to 164 ms per swap, 20 rounds per cell, random = 33.3%);
+    - blank camera → 29.5–36.1%;
+    - mirrored camera → mirrored answer 240/240;
+    - toy erased from every frame after the hide → still right 135/135, so it tracks the cups, not the toy.
+  - I expected fast shuffles to fool it; they don't. Within this scene and camera the task is solved, but other cups, lights or angles would blind it.
+  - Counter: `/api/kedi/{stats,start,result}`. Weights may go to Hugging Face later. Notes: `train-cat/NOTES.md`.
 - ✊ RockPaperScissors‑3P and 🎱 Magic8Ball‑20P: coming soon.
 
 Type an optional question, **hold** the button (or Space / Enter) and release. The hold duration, hashed with crypto‑random jitter, becomes the model input. Each model is a real ONNX file run by ONNX Runtime Web (WebGPU, else WASM), lazy‑loaded from jsDelivr, with a silent TypeScript fallback. Every language has its own URL (`/`, `/tr`, `/de`, `/es`, `/fr`, plus `/coin` and `/dice` under each).

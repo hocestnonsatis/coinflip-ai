@@ -61,3 +61,9 @@ swap events or cup positions). Same three.js scene for training data (headless C
 - eval best.pt: grid 900/900 but blank feed P ∈ [0.08, 0.77] ✗. eval last.pt: grid 900/900, test 240/240, mirror 240/240, notoy 135/135, blank P ∈ [0.29, 0.36] ✓ → **shipped last.pt**.
 - `python3 train-cat/export.py train-cat/ckpt/last.pt`: ONNX 114,132 B, TS/torch/ONNX parity 6e-7, test blank → [0.343, 0.336, 0.322].
 - kedi-stats counts the 2,003 train rounds seen in the last epoch (561,703 frames); the set grew during training.
+
+## C6 browser integration with trained weights (≈18:00 TRT)
+- Card text localized (train/honesty/limits built from real numbers ×5 langs). The old "fast shuffles confuse it" claims were false → removed from the card and the hub taglines.
+- Accuracy table: count moved to the note (20 per cell), fixed layout so it fits the panel.
+- cdp-kedi.mjs now also plays 9 real-user rounds (click-click and drag swaps, rapid/slow/2.5 s pauses, mixed with shuffle ×12/20/30 at slider 1.0 = 150 ms per swap, and slider 0 = 900 ms). Slider extremes are inside the training range (speed ∈ [0,1]); manual swaps are 550 ms, queued with a 20 ms gap, also in the training range.
+- Dev run: every guess matched the expected slot by probs; __kediUi.result was a $state proxy (didn't serialize) → now a plain copy.

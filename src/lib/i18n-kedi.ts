@@ -2,7 +2,7 @@ import type { Lang } from './i18n';
 // Kedi (cups) strings. Comment placeholders: {pos} the cup (by position, as the human sees it), {p} the cat's confidence in it,
 // {q}/{pq} second choice and its confidence, {n} frames the cat has seen this round, {s} swaps, {ms} model time per frame,
 // {real} where the toy really was.
-export type KediCard = { params: string; episodes: string; frames: string; train: string; overall: string; random: string; size: string; blank: string };
+export type KediCard = { params: string; episodes: string; frames: string; ep: string; min: string; procs: string; overall: string; random: string; size: string; bMin: string; bMax: string; mir: string; noToy: string; fastMs: string; fastAcc: string };
 export type KediDict = {
 	title: string; desc: string; pitch: string; pos: [string, string, string]; cupOf: (pos: string) => string;
 	hide: string; hiding: string; shuffle: (s: number) => string; ask: string; asking: string; queued: (n: number) => string; catWin: string; humanWin: string; newRound: string;
@@ -22,10 +22,10 @@ const tr: KediDict = {
 	cardTitle: 'Model kartı', card: (s) => [
 		['Mimari', 'CNN (kare + önceki kareyle farkı; 3 evrişim katmanı) → 32 özellik → GRU (32 gizli durum) → her bardak konumu için olasılık'], ['Parametre', s.params],
 		['Girdi', 'Sadece pikseller: masanın üstündeki sabit “kedi kamerası”ndan 64×32 gri tonlu kare, oyun zamanında saniyede 30 kare (bir öncekinin aynısı olan kareler atlanır). Oyun durumu, değişim olayları ya da bardak konumları modele hiç verilmez. Hafızası, oyuncağı sakladığın an sıfırlanır (kedi o an izlemeye başlar).'],
-		['Eğitim verisi', `${s.episodes} rastgele tur, ${s.frames} kare; aynı three.js sahnesi ve aynı kedi kamerasıyla headless Chrome’da render edildi. Hız, değişim sayısı ve ışık rastgele.`], ['Eğitim', s.train],
-		['Doğruluk (ayrı test turları)', `${s.overall} · rastgele tahmin: ${s.random}`], ['Dürüstlük testi', s.blank], ['Boyut', s.size],
-		['Kısıtlar', 'Çok hızlı karıştırınca şaşırıyor; bu gerçek, aşağıdaki tabloda görebilirsin. Sadece bu sahnede, bu kamerayla çalışır. Ağırlıkları ileride Hugging Face’te yayımlayabilirim.']],
-	accTitle: 'Doğruluk: değişim sayısı × hız (son karedeki tahmin)', accSwaps: 'değişim', accNote: 'Her hücre ayrı tutulan test turları; parantezde tur sayısı. Rastgele tahmin %33,3.',
+		['Eğitim verisi', `${s.episodes} rastgele tur, ${s.frames} kare; aynı three.js sahnesi ve aynı kedi kamerasıyla headless Chrome’da render edildi. Hız, değişim sayısı ve ışık rastgele.`], ['Eğitim', `PyTorch (CPU), ${s.ep} epoch ≈ ${s.min} dk × ${s.procs} CPU iş parçacığı; her karede çapraz entropi`],
+		['Doğruluk (ayrı test turları)', `${s.overall} · rastgele tahmin: ${s.random}`], ['Dürüstlük testi', `Kamera boş/sabit görüntü verirse → olasılıklar %33 civarında kalır (${s.bMin}–${s.bMax}) · görüntü aynalanırsa → cevap da aynalanır (${s.mir} tur) · saklamadan sonra oyuncak her kareden silinse bile → yine doğru (${s.noToy}): bardakları izliyor, oyuncağı değil`], ['Boyut', s.size],
+		['Kısıtlar', `Testlerde en hızlı ayarda bile (değişim başına ${s.fastMs} ms) şaşırmadı: ${s.fastAcc}. Ama sadece bu sahnede, bu kamerayla çalışır; başka bardak, ışık ya da açı görürse kör olur. Ağırlıkları ileride Hugging Face’te yayımlayabilirim.`]],
+	accTitle: 'Doğruluk: değişim sayısı × hız (son karedeki tahmin)', accSwaps: 'değişim', accNote: 'Her hücre ayrı tutulan 20 test turu (hiç eğitimde görülmedi), tek basışta ×N karıştırma. Rastgele tahmin %33,3.',
 	seen: ['Gördüm! {pos}. {n} karedir izliyorum, %{p} eminim.', 'Tamam, oyuncak {pos} altında. Gözüm üstünde ({p}).', 'Not aldım: {pos}. Şimdi karıştır bakalım.'],
 	sure: ['{n} kare izledim. Hâlâ {pos} diyorum: {p}.', 'Kolaydı. {pos}, {p} güvenle.', '{s} değişim oldu, takipteyim: {pos} ({p}).'],
 	unsure: ['Hmm. {pos} sanırım ({p}), ama {q} da olabilir ({pq}).', '{n} kare… {pos} ile {q} arasında kaldım: {p} / {pq}.', 'Gözüm biraz karıştı. En iyi tahminim {pos}, {p}.'],
@@ -46,10 +46,10 @@ const en: KediDict = {
 	cardTitle: 'Model card', card: (s) => [
 		['Architecture', 'CNN (frame + difference to the previous frame; 3 conv layers) → 32 features → GRU (32 hidden) → probability per cup position'], ['Parameters', s.params],
 		['Input', 'Pixels only: a 64×32 grayscale frame from a fixed “cat camera” above the table, 30 frames per second of game time (frames identical to the previous one are skipped). Game state, swap events and cup positions are never given to the model. Its memory is reset when you hide the toy (that’s when the cat starts watching).'],
-		['Training data', `${s.episodes} random rounds, ${s.frames} frames, rendered in headless Chrome by the same three.js scene and the same cat camera. Speeds, swap counts and lighting randomised.`], ['Training', s.train],
-		['Accuracy (held‑out rounds)', `${s.overall} · random guessing: ${s.random}`], ['Honesty check', s.blank], ['Size', s.size],
-		['Limitations', 'Very fast shuffles confuse it; that’s real, see the table below. It only works in this scene with this camera. I may publish the weights on Hugging Face later.']],
-	accTitle: 'Accuracy: swaps × speed (prediction at the last frame)', accSwaps: 'swaps', accNote: 'Every cell is held‑out test rounds; round count in brackets. Random guessing is 33.3%.',
+		['Training data', `${s.episodes} random rounds, ${s.frames} frames, rendered in headless Chrome by the same three.js scene and the same cat camera. Speeds, swap counts and lighting randomised.`], ['Training', `PyTorch (CPU), ${s.ep} epochs ≈ ${s.min} min × ${s.procs} CPU threads; per‑frame cross‑entropy`],
+		['Accuracy (held‑out rounds)', `${s.overall} · random guessing: ${s.random}`], ['Honesty check', `blank/constant camera → probabilities stay near 33% (${s.bMin}–${s.bMax}) · mirrored camera → mirrored answer (${s.mir} rounds) · toy erased from every frame after the hide → still right (${s.noToy}): it tracks the cups, not the toy`], ['Size', s.size],
+		['Limitations', `In tests it was not fooled even at the fastest setting (${s.fastMs} ms per swap): ${s.fastAcc}. But it only works in this scene with this camera; other cups, light or angles would blind it. I may publish the weights on Hugging Face later.`]],
+	accTitle: 'Accuracy: swaps × speed (prediction at the last frame)', accSwaps: 'swaps', accNote: 'Every cell = 20 held‑out test rounds (never trained on), one press of shuffle ×N. Random guessing is 33.3%.',
 	seen: ['Got it! {pos}. Watching for {n} frames, {p} sure.', 'OK, the toy is under {pos}. My eyes are on it ({p}).', 'Noted: {pos}. Go ahead, shuffle.'],
 	sure: ['{n} frames in. Still {pos}: {p}.', 'Easy. {pos}, {p} confident.', '{s} swaps so far, still tracking: {pos} ({p}).'],
 	unsure: ['Hmm. {pos}, I think ({p}), but maybe {q} ({pq}).', '{n} frames… torn between {pos} and {q}: {p} / {pq}.', 'That got a bit blurry. Best guess {pos}, {p}.'],
@@ -70,10 +70,10 @@ const de: KediDict = {
 	cardTitle: 'Modellkarte', card: (s) => [
 		['Architektur', 'CNN (Bild + Differenz zum vorigen Bild; 3 Faltungsschichten) → 32 Merkmale → GRU (32 versteckt) → Wahrscheinlichkeit je Becherposition'], ['Parameter', s.params],
 		['Eingabe', 'Nur Pixel: ein 64×32‑Graustufenbild einer festen „Katzenkamera“ über dem Tisch, 30 Bilder pro Sekunde Spielzeit (Bilder, die dem vorigen gleichen, werden übersprungen). Spielzustand, Tausch‑Ereignisse und Becherpositionen bekommt das Modell nie. Sein Gedächtnis wird beim Verstecken zurückgesetzt (ab dann schaut die Katze zu).'],
-		['Trainingsdaten', `${s.episodes} zufällige Runden, ${s.frames} Bilder, in Headless‑Chrome von derselben three.js‑Szene und derselben Katzenkamera gerendert. Tempo, Tauschanzahl und Licht zufällig.`], ['Training', s.train],
-		['Genauigkeit (zurückgehaltene Runden)', `${s.overall} · Raten: ${s.random}`], ['Ehrlichkeitstest', s.blank], ['Größe', s.size],
-		['Grenzen', 'Sehr schnelles Mischen verwirrt sie; das ist echt, siehe Tabelle unten. Funktioniert nur in dieser Szene mit dieser Kamera. Die Gewichte veröffentliche ich vielleicht später auf Hugging Face.']],
-	accTitle: 'Genauigkeit: Tausche × Tempo (Tipp beim letzten Bild)', accSwaps: 'Tausche', accNote: 'Jede Zelle sind zurückgehaltene Testrunden; Anzahl in Klammern. Raten ergibt 33,3 %.',
+		['Trainingsdaten', `${s.episodes} zufällige Runden, ${s.frames} Bilder, in Headless‑Chrome von derselben three.js‑Szene und derselben Katzenkamera gerendert. Tempo, Tauschanzahl und Licht zufällig.`], ['Training', `PyTorch (CPU), ${s.ep} Epochen ≈ ${s.min} min × ${s.procs} CPU‑Threads; Kreuzentropie pro Bild`],
+		['Genauigkeit (zurückgehaltene Runden)', `${s.overall} · Raten: ${s.random}`], ['Ehrlichkeitstest', `leere/konstante Kamera → Wahrscheinlichkeiten bleiben bei etwa 33 % (${s.bMin}–${s.bMax}) · gespiegelte Kamera → gespiegelte Antwort (${s.mir} Runden) · Spielzeug nach dem Verstecken aus jedem Bild gelöscht → trotzdem richtig (${s.noToy}): sie verfolgt die Becher, nicht das Spielzeug`], ['Größe', s.size],
+		['Grenzen', `In Tests ließ sie sich selbst bei der schnellsten Einstellung (${s.fastMs} ms pro Tausch) nicht täuschen: ${s.fastAcc}. Sie funktioniert aber nur in dieser Szene mit dieser Kamera; andere Becher, Licht oder Winkel machen sie blind. Die Gewichte veröffentliche ich vielleicht später auf Hugging Face.`]],
+	accTitle: 'Genauigkeit: Tausche × Tempo (Tipp beim letzten Bild)', accSwaps: 'Tausche', accNote: 'Jede Zelle = 20 zurückgehaltene Testrunden (nie trainiert), ein Druck auf Mischen ×N. Raten ergibt 33,3 %.',
 	seen: ['Gesehen! {pos}. Seit {n} Bildern dabei, {p} sicher.', 'OK, das Spielzeug ist unter dem Becher {pos}. Ich hab’s im Blick ({p}).', 'Notiert: {pos}. Na los, misch.'],
 	sure: ['{n} Bilder. Immer noch {pos}: {p}.', 'Leicht. {pos}, {p} sicher.', 'Schon {s} Tausche, ich bleib dran: {pos} ({p}).'],
 	unsure: ['Hmm. {pos}, glaube ich ({p}), vielleicht aber {q} ({pq}).', '{n} Bilder… hin‑ und hergerissen zwischen {pos} und {q}: {p} / {pq}.', 'Das war etwas verschwommen. Bester Tipp {pos}, {p}.'],
@@ -94,10 +94,10 @@ const es: KediDict = {
 	cardTitle: 'Ficha del modelo', card: (s) => [
 		['Arquitectura', 'CNN (fotograma + diferencia con el anterior; 3 capas convolucionales) → 32 rasgos → GRU (32 ocultas) → probabilidad por posición de vaso'], ['Parámetros', s.params],
 		['Entrada', 'Solo píxeles: un fotograma en gris de 64×32 de una “cámara del gato” fija sobre la mesa, 30 fotogramas por segundo de tiempo de juego (se omiten los idénticos al anterior). El estado del juego, los cambios y las posiciones de los vasos nunca se le dan al modelo. Su memoria se reinicia al esconder el juguete (ahí empieza a mirar).'],
-		['Datos de entrenamiento', `${s.episodes} rondas al azar, ${s.frames} fotogramas, renderizados en Chrome headless con la misma escena three.js y la misma cámara del gato. Velocidad, número de cambios y luz al azar.`], ['Entrenamiento', s.train],
-		['Precisión (rondas reservadas)', `${s.overall} · al azar: ${s.random}`], ['Prueba de honestidad', s.blank], ['Tamaño', s.size],
-		['Limitaciones', 'Las mezclas muy rápidas lo confunden; es real, mira la tabla. Solo funciona en esta escena con esta cámara. Puede que publique los pesos en Hugging Face más adelante.']],
-	accTitle: 'Precisión: cambios × velocidad (predicción en el último fotograma)', accSwaps: 'cambios', accNote: 'Cada celda son rondas de prueba reservadas; número de rondas entre paréntesis. Al azar: 33,3 %.',
+		['Datos de entrenamiento', `${s.episodes} rondas al azar, ${s.frames} fotogramas, renderizados en Chrome headless con la misma escena three.js y la misma cámara del gato. Velocidad, número de cambios y luz al azar.`], ['Entrenamiento', `PyTorch (CPU), ${s.ep} épocas ≈ ${s.min} min × ${s.procs} hilos de CPU; entropía cruzada por fotograma`],
+		['Precisión (rondas reservadas)', `${s.overall} · al azar: ${s.random}`], ['Prueba de honestidad', `cámara en blanco/constante → las probabilidades se quedan cerca del 33 % (${s.bMin}–${s.bMax}) · cámara reflejada → respuesta reflejada (${s.mir} rondas) · juguete borrado de cada fotograma tras esconderlo → sigue acertando (${s.noToy}): sigue los vasos, no el juguete`], ['Tamaño', s.size],
+		['Limitaciones', `En las pruebas no se dejó engañar ni a la velocidad máxima (${s.fastMs} ms por cambio): ${s.fastAcc}. Pero solo funciona en esta escena con esta cámara; otros vasos, otra luz u otro ángulo lo dejarían ciego. Quizá publique los pesos en Hugging Face más adelante.`]],
+	accTitle: 'Precisión: cambios × velocidad (predicción en el último fotograma)', accSwaps: 'cambios', accNote: 'Cada celda = 20 rondas de prueba reservadas (nunca entrenadas), una pulsación de mezclar ×N. Al azar: 33,3 %.',
 	seen: ['¡Visto! {pos}. Llevo {n} fotogramas mirando, {p} seguro.', 'Vale, el juguete está bajo {pos}. No le quito ojo ({p}).', 'Apuntado: {pos}. Adelante, mezcla.'],
 	sure: ['{n} fotogramas. Sigo con {pos}: {p}.', 'Fácil. {pos}, con {p}.', 'Van {s} cambios y sigo la pista: {pos} ({p}).'],
 	unsure: ['Mmm. {pos}, creo ({p}), aunque quizá {q} ({pq}).', '{n} fotogramas… dudo entre {pos} y {q}: {p} / {pq}.', 'Se me ha nublado un poco. Mi mejor apuesta: {pos}, {p}.'],
@@ -118,10 +118,10 @@ const fr: KediDict = {
 	cardTitle: 'Fiche du modèle', card: (s) => [
 		['Architecture', 'CNN (image + différence avec la précédente ; 3 couches de convolution) → 32 caractéristiques → GRU (32 cachées) → probabilité par position de gobelet'], ['Paramètres', s.params],
 		['Entrée', 'Uniquement des pixels : une image 64×32 en niveaux de gris d’une « caméra du chat » fixe au‑dessus de la table, 30 images par seconde de temps de jeu (les images identiques à la précédente sont ignorées). L’état du jeu, les échanges et les positions des gobelets ne sont jamais donnés au modèle. Sa mémoire est remise à zéro quand tu caches le jouet (c’est là que le chat commence à regarder).'],
-		['Données d’entraînement', `${s.episodes} manches aléatoires, ${s.frames} images, rendues dans Chrome headless par la même scène three.js et la même caméra du chat. Vitesse, nombre d’échanges et lumière aléatoires.`], ['Entraînement', s.train],
-		['Précision (manches réservées)', `${s.overall} · au hasard : ${s.random}`], ['Test d’honnêteté', s.blank], ['Taille', s.size],
-		['Limites', 'Les mélanges très rapides le perdent ; c’est réel, voir le tableau. Ne marche que dans cette scène avec cette caméra. Je publierai peut‑être les poids sur Hugging Face plus tard.']],
-	accTitle: 'Précision : échanges × vitesse (prédiction à la dernière image)', accSwaps: 'échanges', accNote: 'Chaque case = manches de test réservées ; nombre de manches entre parenthèses. Au hasard : 33,3 %.',
+		['Données d’entraînement', `${s.episodes} manches aléatoires, ${s.frames} images, rendues dans Chrome headless par la même scène three.js et la même caméra du chat. Vitesse, nombre d’échanges et lumière aléatoires.`], ['Entraînement', `PyTorch (CPU), ${s.ep} époques ≈ ${s.min} min × ${s.procs} threads CPU ; entropie croisée par image`],
+		['Précision (manches réservées)', `${s.overall} · au hasard : ${s.random}`], ['Test d’honnêteté', `caméra vide/constante → les probabilités restent vers 33 % (${s.bMin}–${s.bMax}) · caméra en miroir → réponse en miroir (${s.mir} manches) · jouet effacé de chaque image après la cachette → toujours juste (${s.noToy}) : il suit les gobelets, pas le jouet`], ['Taille', s.size],
+		['Limites', `En test, même la vitesse maximale (${s.fastMs} ms par échange) ne l’a pas trompé : ${s.fastAcc}. Mais il ne marche que dans cette scène avec cette caméra ; d’autres gobelets, une autre lumière ou un autre angle l’aveugleraient. Je publierai peut‑être les poids sur Hugging Face plus tard.`]],
+	accTitle: 'Précision : échanges × vitesse (prédiction à la dernière image)', accSwaps: 'échanges', accNote: 'Chaque case = 20 manches de test réservées (jamais entraînées), un appui sur mélanger ×N. Au hasard : 33,3 %.',
 	seen: ['Vu ! {pos}. Je regarde depuis {n} images, sûr à {p}.', 'OK, le jouet est sous {pos}. Je l’ai à l’œil ({p}).', 'Noté : {pos}. Vas‑y, mélange.'],
 	sure: ['{n} images. Toujours {pos} : {p}.', 'Facile. {pos}, à {p}.', 'Déjà {s} échanges, je suis toujours : {pos} ({p}).'],
 	unsure: ['Hmm. {pos}, je crois ({p}), mais peut‑être {q} ({pq}).', '{n} images… j’hésite entre {pos} et {q} : {p} / {pq}.', 'C’était un peu flou. Meilleure idée : {pos}, {p}.'],

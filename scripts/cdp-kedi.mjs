@@ -99,7 +99,7 @@ async function round(b, { slot = 1, hand = true, n = 0, speed = null, feed = 'no
 		{ slot: 1, k: 6, mode: 'drag', gapMs: 0 }, { slot: 0, k: 3, mode: 'click', gapMs: 100, n: 12, speed: 1 }, { slot: 2, k: 2, mode: 'drag', gapMs: 100, n: 20, speed: 1 },
 		{ slot: 1, k: 0, mode: 'click', gapMs: 0, n: 30, speed: 1 }, { slot: 0, k: 0, mode: 'click', gapMs: 0, n: 6, speed: 0 }, { slot: 2, k: 5, mode: 'click', gapMs: 2500 }
 	];
-	for (const [i, p] of plan.entries()) out.manual.push(await manual(b, { ...p, seed: 17 + i * 31 }));
+	for (const [i, p] of plan.entries()) { try { out.manual.push(await manual(b, { ...p, seed: 17 + i * 31 })); } catch (e) { out.errors.push(`manual #${i}: ${e.message}`); out.manual.push({ ...p, error: e.message, phase: (await ui(b)).phase }); } }
 	out.errors.push(...b.logs.filter((l) => l.type === 'error' || l.type === 'exception' || l.type === 'warning').map((l) => `manual: ${l.text}`));
 	b.close();
 }

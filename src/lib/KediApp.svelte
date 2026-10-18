@@ -190,12 +190,15 @@
 		isPartOf: { '@type': 'WebSite', name: 'Tiny Models', url: `${SITE}/` }
 	});
 	const cell = (c: number[]) => (c[1] ? pct.format(c[0] / c[1]) : '—');
+	// fastest speed column of the grid (real numbers for the "limits" line)
+	const fast = (() => { const j = KS.speeds.length - 1; if (j < 0) return { ms: 0, w: 0, n: 0 }; let w = 0, n = 0; for (const row of KS.cells) { w += row[j][0]; n += row[j][1]; } return { ms: KS.speeds[j].ms, w, n }; })();
 	const card = $derived(t.card({
 		params: nf.format(PARAMS), episodes: nf.format(KS.episodes), frames: nf.format(KS.frames),
-		train: `PyTorch (CPU), ${KS.epochs} epochs ≈ ${KS.minutes} min × ${KS.procs} CPU; dense per‑frame cross‑entropy`,
+		ep: nf.format(KS.epochs), min: nf.format(KS.minutes), procs: nf.format(KS.procs),
 		overall: KS.overall.n ? `${pct1.format(KS.overall.w / KS.overall.n)} (${nf.format(KS.overall.w)}/${nf.format(KS.overall.n)})` : '—', random: pct1.format(1 / 3),
 		size: `${(KS.onnxBytes / 1024).toLocaleString(lang, { maximumFractionDigits: 0 })} KB ONNX`,
-		blank: KS.blank.n ? `blank feed → P ∈ [${pct1.format(KS.blank.minP)}, ${pct1.format(KS.blank.maxP)}] · mirrored feed → mirrored answer in ${nf.format(KS.mirror.agree)}/${nf.format(KS.mirror.n)} rounds${KS.notoy.n ? ` · toy erased from every frame after the hide → still right in ${nf.format(KS.notoy.ok)}/${nf.format(KS.notoy.n)} (it tracks the cups, not the toy)` : ''}` : '—'
+		bMin: pct1.format(KS.blank.minP), bMax: pct1.format(KS.blank.maxP), mir: `${nf.format(KS.mirror.agree)}/${nf.format(KS.mirror.n)}`,
+		noToy: `${nf.format(KS.notoy.ok)}/${nf.format(KS.notoy.n)}`, fastMs: nf.format(fast.ms), fastAcc: fast.n ? `${pct1.format(fast.w / fast.n)} (${nf.format(fast.w)}/${nf.format(fast.n)})` : '—'
 	}));
 
 	onMount(() => {
@@ -213,7 +216,7 @@
 				brain = new ai.Brain();
 				const w = window as unknown as Record<string, unknown>;
 				w.__kedi = { s: s3, anim, m: mod }; // headless tests + data generator
-				w.__kediUi = () => ({ phase, probs: [...probs], nFrames, swaps, queued, result, engine, sel, msPer });
+				w.__kediUi = () => ({ phase, probs: [...probs], nFrames, swaps, queued, result: result ? { ...result } : null, engine, sel, msPer });
 				w.__kediFeed = (m: typeof feedMode) => { feedMode = m; };
 				const ro = new ResizeObserver(updateInsets); for (const el of [panelEl, headerEl]) if (el) ro.observe(el);
 				window.addEventListener('resize', updateInsets); updateInsets();
@@ -305,7 +308,7 @@
 					<p class="acc-t">{t.accTitle}</p>
 					<table class="acc mono">
 						<thead><tr><th>{t.accSwaps}</th>{#each KS.speeds as s (s.s)}<th>{t.speeds[Math.min(4, Math.floor(s.s * 5))]}<br /><small>{s.ms} ms</small></th>{/each}</tr></thead>
-						<tbody>{#each KS.swaps as n, i (n)}<tr><th>{n}</th>{#each KS.cells[i] as c, j (j)}<td style:--a={c[1] ? c[0] / c[1] : 0}>{cell(c)}<small> ({c[1]})</small></td>{/each}</tr>{/each}</tbody>
+						<tbody>{#each KS.swaps as n, i (n)}<tr><th>{n}</th>{#each KS.cells[i] as c, j (j)}<td style:--a={c[1] ? c[0] / c[1] : 0} title={`${c[0]}/${c[1]}`}>{cell(c)}</td>{/each}</tr>{/each}</tbody>
 					</table>
 					<p class="acc-n">{t.accNote}</p>
 				{/if}
@@ -366,8 +369,8 @@
 	details a { color: #ffd36b; }
 	details ul { padding-left: 18px; margin: 8px 0 0; line-height: 1.5; opacity: 0.85; }
 	.acc-t { margin: 10px 0 4px; font-weight: 700; font-size: 12px; }
-	.acc { width: 100%; border-collapse: collapse; font-size: 10px; }
-	.acc th, .acc td { padding: 2px 3px; text-align: center; border: 1px solid #ffffff14; }
+	.acc { width: 100%; border-collapse: collapse; font-size: 10px; table-layout: fixed; } .acc th small { font-size: 9px; }
+	.acc th, .acc td { padding: 2px 1px; overflow: hidden; text-overflow: ellipsis; text-align: center; border: 1px solid #ffffff14; }
 	.acc td { background: color-mix(in srgb, #36e27e calc(var(--a) * 55%), transparent); } .acc td small { opacity: 0.55; }
 	.acc-n { font-size: 10px; opacity: 0.6; margin: 4px 0 0; }
 	@media (max-aspect-ratio: 1/1), (max-width: 760px) {
