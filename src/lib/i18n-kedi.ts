@@ -26,7 +26,7 @@ const tr: KediDict = {
 		['Doğruluk (ayrı test turları)', `${s.overall} · rastgele tahmin: ${s.random}`], ['Dürüstlük testi', `Kamera boş/sabit görüntü verirse → olasılıklar %33 civarında kalır (${s.bMin}–${s.bMax}) · görüntü aynalanırsa → cevap da aynalanır (${s.mir} tur) · saklamadan sonra oyuncak her kareden silinse bile → yine doğru (${s.noToy}): bardakları izliyor, oyuncağı değil`], ['Boyut', s.size],
 		['Kısıtlar', `Testlerde en hızlı ayarda bile (değişim başına ${s.fastMs} ms) şaşırmadı: ${s.fastAcc}. Ama sadece bu sahnede, bu kamerayla çalışır; başka bardak, ışık ya da açı görürse kör olur. Ağırlıkları ileride Hugging Face’te yayımlayabilirim.`]],
 	accTitle: 'Doğruluk: değişim sayısı × hız (son karedeki tahmin)', accSwaps: 'değişim', accNote: 'Her hücre ayrı tutulan 20 test turu (hiç eğitimde görülmedi), tek basışta ×N karıştırma. Rastgele tahmin %33,3.',
-	seen: ['Gördüm! {pos}. {n} karedir izliyorum, %{p} eminim.', 'Tamam, oyuncak {pos} altında. Gözüm üstünde ({p}).', 'Not aldım: {pos}. Şimdi karıştır bakalım.'],
+	seen: ['Gördüm! {pos}. {n} karedir izliyorum, {p} eminim.', 'Tamam, oyuncak {pos} altında. Gözüm üstünde ({p}).', 'Not aldım: {pos}. Şimdi karıştır bakalım.'],
 	sure: ['{n} kare izledim. Hâlâ {pos} diyorum: {p}.', 'Kolaydı. {pos}, {p} güvenle.', '{s} değişim oldu, takipteyim: {pos} ({p}).'],
 	unsure: ['Hmm. {pos} sanırım ({p}), ama {q} da olabilir ({pq}).', '{n} kare… {pos} ile {q} arasında kaldım: {p} / {pq}.', 'Gözüm biraz karıştı. En iyi tahminim {pos}, {p}.'],
 	lost: ['Kaybettim galiba. {pos} {p}, {q} {pq}… yazı tura gibi.', 'Çok hızlıydı! Kafamda üç bardak da aynı: en yüksek {p}.', 'Patilerimle yemin ederim izliyordum. Şu an {p} ile {pos}.'],

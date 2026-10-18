@@ -1,0 +1,114 @@
+{
+ "wrong-before": {
+  "ok": 60,
+  "n": 60,
+  "fooled": 0,
+  "meanP": 0.9991,
+  "by": {
+   "swaps0": [
+    12,
+    12
+   ],
+   "swaps1+": [
+    48,
+    48
+   ]
+  }
+ },
+ "wrong-after": {
+  "ok": 60,
+  "n": 60,
+  "fooled": 0,
+  "meanP": 0.9991,
+  "by": {
+   "swaps0": [
+    12,
+    12
+   ],
+   "swaps1+": [
+    48,
+    48
+   ]
+  }
+ },
+ "empty-before": {
+  "ok": 60,
+  "n": 60,
+  "fooled": 0,
+  "meanP": 0.9991,
+  "by": {
+   "swaps0": [
+    12,
+    12
+   ],
+   "swaps1+": [
+    48,
+    48
+   ]
+  }
+ },
+ "all-before": {
+  "ok": 60,
+  "n": 60,
+  "fooled": 0,
+  "meanP": 0.9989,
+  "by": {
+   "swaps0": [
+    12,
+    12
+   ],
+   "swaps1+": [
+    48,
+    48
+   ]
+  }
+ },
+ "all-after": {
+  "ok": 60,
+  "n": 60,
+  "fooled": 0,
+  "meanP": 0.9989,
+  "by": {
+   "swaps0": [
+    12,
+    12
+   ],
+   "swaps1+": [
+    48,
+    48
+   ]
+  }
+ },
+ "right-before": {
+  "ok": 60,
+  "n": 60,
+  "fooled": 0,
+  "meanP": 0.9985,
+  "by": {
+   "swaps0": [
+    12,
+    12
+   ],
+   "swaps1+": [
+    48,
+    48
+   ]
+  }
+ },
+ "right-after": {
+  "ok": 60,
+  "n": 60,
+  "fooled": 0,
+  "meanP": 0.9985,
+  "by": {
+   "swaps0": [
+    12,
+    12
+   ],
+   "swaps1+": [
+    48,
+    48
+   ]
+  }
+ }
+}

@@ -3,6 +3,8 @@
 	import { replaceState } from '$app/navigation';
 	import { LANGS, type Lang } from '#lib/i18n';
 	import { KEDI } from '#lib/i18n-kedi';
+	import { KEDI_CHEAT, type StickId } from '#lib/i18n-kedi-cheat';
+	import { KEDI_STICK } from '#lib/kedi-stick-stats';
 	import { HUB } from '#lib/i18n-hub';
 	import { SITE, REPO, pathFor, urlFor, setLangPref } from '#lib/site';
 	import { HIDE_D, MANUAL_D, SLOT_X, endOf, rng, shuffleEvents, swapDur, type Ev } from '#lib/kedi-anim';
@@ -21,11 +23,12 @@
 	const initialLang = (() => data.lang ?? 'en')();
 	let lang = $state<Lang>(initialLang);
 	const t = $derived(KEDI[lang]);
+	const c = $derived(KEDI_CHEAT[lang]);
 	const pct = $derived(new Intl.NumberFormat(lang, { style: 'percent', maximumFractionDigits: 0 }));
 	const pct1 = $derived(new Intl.NumberFormat(lang, { style: 'percent', minimumFractionDigits: 1, maximumFractionDigits: 1 }));
 	const nf = $derived(new Intl.NumberFormat(lang));
 
-	let canvas3d = $state<HTMLCanvasElement>(), camEl = $state<HTMLCanvasElement>();
+	let canvas3d = $state<HTMLCanvasElement>(), camEl = $state<HTMLCanvasElement>(), insetEl = $state<HTMLCanvasElement>();
 	let s3: KediScene | null = null, brain: Brain | null = null;
 	let webglFailed = $state(false), engine = $state<Backend | 'loading'>('loading');
 	let phase = $state<Phase>('loading');
@@ -38,6 +41,20 @@
 	let headerEl = $state<HTMLElement>(), panelEl = $state<HTMLElement>();
 	let feedMode: 'normal' | 'blank' | 'mirror' = 'normal'; // test hook only (honesty checks on prod)
 	let round = 0;
+	// ---- the cheat: toy pictures stuck on cups (by cup id; they stay on across rounds). Cheated rounds are not counted.
+	let cheatOn = $state(false), stick = $state([false, false, false]), slotStick = $state([false, false, false]), cheated = $state(false);
+	const canStick = $derived(phase === 'hide' || phase === 'shuffle' || phase === 'over');
+	function setStick(cup: number, on: boolean) {
+		if (!s3) return;
+		s3.setSticker(cup, on, phase === 'shuffle' ? s3.time() : 0); // before the hide (or for the next round) = already there when the toy is hidden
+		stick = s3.stickers().on; syncSlots();
+		if (on && phase === 'shuffle') { cheated = true; const r = round; s3.at(s3.time() + 0.7, () => { if (r === round && phase === 'shuffle' && !queued) say(fill(pick(c.stickOn))); }); }
+	}
+	function syncSlots() { if (!s3) return; const at = s3.pose().at, v = [0, 1, 2].map((k) => stick[at[k]]); if (v.some((x, k) => x !== slotStick[k])) slotStick = v; }
+	const stickSlot = (k: number) => { if (s3 && canStick) { const cup = s3.pose().at[k]; setStick(cup, !stick[cup]); sfx.tick(); } };
+	const stickAll = () => { if (canStick) { [0, 1, 2].forEach((k) => setStick(k, true)); sfx.tick(); } };
+	const stickEmpty = () => { if (s3 && phase === 'shuffle') { const tc = s3.pose().toyCup; [0, 1, 2].forEach((k) => setStick(k, k !== tc)); sfx.tick(); } };
+	const stickClear = () => { [0, 1, 2].forEach((k) => setStick(k, false)); };
 
 	// ---- global all-time counter (/api/kedi/*), best-effort: hidden if the API is down
 	type Counts = { games: number; human: number; cat: number };
@@ -51,7 +68,7 @@
 	const loadStats = async () => { const { v } = await api('stats'); if (isCounts(v)) gstats = v; };
 	function openTicket(r: number) { counted = false; ticket = { round: r, p: api('start', {}).then(({ ok, v }) => (ok ? ((v as { gameId?: string }).gameId ?? null) : null)) }; }
 	async function report(cat: boolean) {
-		const tk = ticket; ticket = null; if (!tk || tk.round !== round) return;
+		const tk = ticket; ticket = null; if (!tk || tk.round !== round || cheated) return; // cheated rounds never reach the counter
 		const gid = await tk.p; if (!gid) return;
 		const { ok, v } = await api('result', { winner: cat ? 'model' : 'human', moves: swaps, gameId: gid });
 		if (ok && isCounts(v)) { gstats = v; counted = true; } else loadStats();
@@ -100,6 +117,14 @@
 		camImg ??= camCtx.createImageData(64, 32);
 		for (let y = 0; y < 32; y++) for (let x = 0; x < 64; x++) { const v = f[(31 - y) * 64 + x], i = (y * 64 + x) * 4; camImg.data[i] = camImg.data[i + 1] = camImg.data[i + 2] = v; camImg.data[i + 3] = 255; }
 		camCtx.putImageData(camImg, 0, 0);
+		insetEl?.getContext('2d')?.putImageData(camImg, 0, 0);
+	}
+	/** Inset preview while the camera is not recording (before the hide / after the round): shown to the player only, never fed to the model. */
+	function drawPreview(f: Uint8Array) {
+		const g = insetEl?.getContext('2d'); if (!g) return;
+		const img = g.createImageData(64, 32);
+		for (let y = 0; y < 32; y++) for (let x = 0; x < 64; x++) { const v = f[(31 - y) * 64 + x], i = (y * 64 + x) * 4; img.data[i] = img.data[i + 1] = img.data[i + 2] = v; img.data[i + 3] = 255; }
+		g.putImageData(img, 0, 0);
 	}
 
 	// ---- round flow
@@ -110,13 +135,14 @@
 		probs = [1 / 3, 1 / 3, 1 / 3]; nFrames = 0; msPer = 0;
 		s3?.reset(); s3?.setMood('idle'); s3?.lookAt(null, 0.3); brain?.reset();
 		camCtx?.clearRect(0, 0, 64, 32);
+		cheated = stick.some(Boolean); syncSlots();
 		phase = 'hide'; say(pick([t.hide]));
 	}
 	function hideAt(slot: number) {
 		if (!s3 || !brain || phase !== 'hide') return;
 		const r = round, t0 = s3.time();
 		brain.reset(); s3.push({ k: 'hide', t: t0, d: HIDE_D, slot }); s3.startCapture(t0);
-		phase = 'hiding'; sfx.tilePick(); openTicket(r);
+		cheated = stick.some(Boolean); phase = 'hiding'; sfx.tilePick(); if (!cheated) openTicket(r);
 		s3.at(t0 + HIDE_D - 0.12, () => sfx.cup(0.45));
 		s3.at(t0 + HIDE_D + 0.05, async () => { await brain?.idle(); if (r !== round) return; phase = 'shuffle'; say(fill(pick(t.seen))); });
 	}
@@ -177,7 +203,8 @@
 		result = { cat, choice, real, p }; phase = 'over';
 		s3.setMood(cat ? 'happy' : 'sad'); sfx.meow(cat); if (!cat) setTimeout(() => sfx.win(), 380);
 		const lucky = p < 0.6, fast = swaps >= 6 && speed > 0.6;
-		say(fill(pick(cat ? (lucky ? t.wonLucky : t.won) : fast ? t.lostFast : t.lostR), { real: posName(real), p: pct.format(p) }));
+		const fooled = !cat && stick[pz.at[choice]];
+		say(fill(pick(cheated && cat ? c.cheatWon : fooled ? c.cheatFooled : cat ? (lucky ? t.wonLucky : t.won) : fast ? t.lostFast : t.lostR), { real: posName(real), p: pct.format(p), st: posName(choice), pos: posName(choice) }));
 		if (cat && Math.random() < 1 / 40) setTimeout(() => { if (r === round) { s3?.knock(pz.toyCup); setTimeout(() => sfx.hit(), 900); } }, 1400);
 		report(cat);
 	}
@@ -216,11 +243,13 @@
 				brain = new ai.Brain();
 				const w = window as unknown as Record<string, unknown>;
 				w.__kedi = { s: s3, anim, m: mod }; // headless tests + data generator
-				w.__kediUi = () => ({ phase, probs: [...probs], nFrames, swaps, queued, result: result ? { ...result } : null, engine, sel, msPer });
+				w.__kediUi = () => ({ phase, probs: [...probs], nFrames, swaps, queued, result: result ? { ...result } : null, engine, sel, msPer, stick: [...stick], slotStick: [...slotStick], cheated, cheatOn });
 				w.__kediFeed = (m: typeof feedMode) => { feedMode = m; };
 				const ro = new ResizeObserver(updateInsets); for (const el of [panelEl, headerEl]) if (el) ro.observe(el);
 				window.addEventListener('resize', updateInsets); updateInsets();
-				const loop = () => { raf = requestAnimationFrame(loop); if (s3) chips = [0, 1, 2].map((k) => s3!.screenOfSlot(k, 0, 1.05)); };
+				let pv = 0;
+				const loop = () => { raf = requestAnimationFrame(loop); if (!s3) return; chips = [0, 1, 2].map((k) => s3!.screenOfSlot(k, 0, 1.05)); syncSlots();
+					if ((phase === 'hide' || phase === 'over') && ++pv % 6 === 0) drawPreview(s3.captureNow()); };
 				loop();
 				if (sp.has('datagen')) return;
 				newRound(); loadStats();
@@ -255,6 +284,7 @@
 			{#each chips as c, k (k)}<span class="chip" class:top={ranked()[0] === k && nFrames > 0} style:left="{c.x}px" style:top="{c.y}px" style:--p={probs[k]}>{pct.format(probs[k])}</span>{/each}
 		{/if}
 	</div>
+	{#if !webglFailed}<div class="inset" class:cheat={cheatOn} aria-hidden="true"><canvas bind:this={insetEl} width="64" height="32"></canvas><small>🐱 {c.inset}{#if phase === 'hide' || phase === 'over'} · {c.preHide}{/if}</small></div>{/if}
 	<main>
 		<header bind:this={headerEl}>
 			<a class="back" href={pathFor(lang, '')} aria-label={HUB[lang].back}>←</a>
@@ -282,6 +312,15 @@
 				<label class="speed">{t.speed}: <b>{speedName}</b> <small class="mono">{Math.round(swapDur(speed) * 1000)} ms</small>
 					<input type="range" min="0" max="1" step="0.05" bind:value={speed} aria-label={t.speed} />
 				</label>
+			</div>
+			<div class="cheat" class:on={cheatOn}>
+				<label class="ct"><input type="checkbox" bind:checked={cheatOn} onchange={() => { if (!cheatOn) stickClear(); }} /> {c.title}</label>
+				{#if cheatOn}
+					<div class="row st"><span>{c.slots}</span>{#each [0, 1, 2] as k (k)}<button class:on={slotStick[k]} onclick={() => stickSlot(k)} disabled={!canStick} aria-pressed={slotStick[k]}>{t.pos[k]}</button>{/each}</div>
+					<div class="row st"><button onclick={stickAll} disabled={!canStick}>{c.all}</button><button onclick={stickEmpty} disabled={phase !== 'shuffle'}>{c.empty}</button><button onclick={stickClear} disabled={!canStick || !stick.some(Boolean)}>{c.clear}</button></div>
+					<p class="cn">{c.note}</p>
+				{/if}
+				{#if cheated}<p class="cheated">🎭 {c.uncounted}</p>{/if}
 			</div>
 			<div class="belief">
 				<small>{t.belief}</small>
@@ -311,6 +350,11 @@
 						<tbody>{#each KS.swaps as n, i (n)}<tr><th>{n}</th>{#each KS.cells[i] as c, j (j)}<td style:--a={c[1] ? c[0] / c[1] : 0} title={`${c[0]}/${c[1]}`}>{cell(c)}</td>{/each}</tr>{/each}</tbody>
 					</table>
 					<p class="acc-n">{t.accNote}</p>
+				{/if}
+				{#if KEDI_STICK.length}
+					<p class="acc-t">🎭 {c.cardTitle}</p>
+					<ul class="stk">{#each KEDI_STICK as r (r.id)}<li><b>{c.cfg[r.id as StickId]}:</b> {c.line(nf.format(r.ok), nf.format(r.n), nf.format(r.fooled), pct.format(r.meanP))}</li>{/each}</ul>
+					<p class="acc-n">{c.cardNote}</p>
 				{/if}
 			</details>
 		</aside>
@@ -348,6 +392,17 @@
 	.stepper { display: inline-flex; align-items: center; gap: 4px; } .stepper button { padding: 6px 9px; } .stepper b { min-width: 22px; text-align: center; }
 	.speed { display: block; margin-top: 8px; font-size: 12px; } .speed small { opacity: 0.6; }
 	.speed input { width: 100%; accent-color: #ffcf5a; }
+	.cheat { margin-top: 8px; padding: 7px 8px; border-radius: 12px; background: #ffffff06; border: 1px dashed #ffffff1f; font-size: 12px; }
+	.cheat.on { border-color: #ff8ad888; background: #ff8ad80d; }
+	.ct { display: flex; gap: 6px; align-items: center; cursor: pointer; font-weight: 700; } .ct input { accent-color: #ff8ad8; }
+	.st { margin-top: 6px; flex-wrap: wrap; } .st span { opacity: 0.75; } .st button { padding: 5px 8px; font-size: 12px; border-radius: 9px; }
+	.st button.on { background: #ffc93a; color: #1a1205; border-color: #ffc93a; }
+	.cn { margin: 6px 0 0; font-size: 10.5px; opacity: 0.65; line-height: 1.35; }
+	.cheated { margin: 6px 0 0; font-size: 11px; color: #ff8ad8; }
+	.inset { position: fixed; left: 14px; top: calc(max(10px, env(safe-area-inset-top)) + 58px); pointer-events: none; display: flex; flex-direction: column; gap: 3px; opacity: 0.8; }
+	.inset canvas { width: 192px; height: 96px; image-rendering: pixelated; border-radius: 8px; border: 1px solid #ffffff2a; background: #000; box-shadow: 0 8px 30px #0008; }
+	.inset small { font: 10px ui-monospace, monospace; opacity: 0.7; } .inset.cheat { opacity: 1; } .inset.cheat canvas { border-color: #ff8ad8aa; }
+	.stk { padding-left: 16px !important; font-size: 11px; }
 	.belief { margin-top: 10px; font-size: 12px; }
 	.belief > small { display: block; font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: #ffd36b; opacity: 0.85; margin-bottom: 4px; }
 	.bar { display: grid; grid-template-columns: 64px 1fr 40px; align-items: center; gap: 6px; margin: 3px 0; }
@@ -378,6 +433,7 @@
 		.hint, .engine { display: none; }
 		.comment { margin: 6px 0; min-height: 2.6em; font-size: 13px; }
 		.brand small { display: none; }
+		.inset canvas { width: 128px; height: 64px; } .inset { left: 10px; top: calc(max(10px, env(safe-area-inset-top)) + 52px); }
 	}
 	@keyframes blink { 50% { opacity: 0.1; } }
 	@media (prefers-reduced-motion: reduce) { .cursor { animation: none; } .track i { transition: none; } }

@@ -61,3 +61,13 @@ import { META, B64, PARAMS } from '../src/lib/kedi-weights.ts';
 	assert.ok(pushes.length >= 1 && pushes.every((a) => a === 'feed(f)'), `brain.push only gets camera frames: ${pushes}`);
 	console.log('kedi honesty wiring ok');
 }
+// the cheat preview inset renders the cat camera for the player only: its frames must never reach the model
+{
+	const { readFileSync } = await import('node:fs');
+	const app = readFileSync(new URL('../src/lib/KediApp.svelte', import.meta.url), 'utf8');
+	const pushes = app.match(/brain\.push\(/g) ?? [];
+	assert.equal(pushes.length, 1, 'exactly one place feeds the model');
+	assert.ok(!/feed\([^)]*captureNow|brain\.push\([^)]*captureNow/.test(app), 'captureNow previews are never fed to the model');
+	assert.ok(/drawPreview\(s3\.captureNow\(\)\)/.test(app) && !/function drawPreview[\s\S]{0,400}brain/.test(app), 'drawPreview only draws');
+	console.log('kedi cheat preview never feeds the model ok');
+}

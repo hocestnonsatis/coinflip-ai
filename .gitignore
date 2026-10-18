@@ -21,3 +21,4 @@ train-cat/ckpt/
 train-cat/data-grid/
 train-cat/__pycache__/
 train-cat/data-notoy/
+train-cat/data-stick/

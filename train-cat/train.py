@@ -117,7 +117,7 @@ def evaluate(model, eps, mm, bs=48):
             for j, i in enumerate(ids):
                 e = eps[i]; last = L[j] - 1; pr = p[j, last].numpy(); y = int(e['labels'][-1])
                 res.append({'seed': e['seed'], 'swaps': e['swaps'], 'speed': e['speed'], 'dur': (np.median(e['durs']) / 1000 if e.get('durs') else None),
-                            'ok': int(pr.argmax() == y), 'p_true': float(pr[y]), 'n': e['n']})
+                            'ok': int(pr.argmax() == y), 'p_true': float(pr[y]), 'n': e['n'], 'choice': int(pr.argmax()), 'p': float(pr.max())})
     model.train(); return res
 
 def table(res):

@@ -83,3 +83,12 @@ swap events or cup positions). Same three.js scene for training data (headless C
 - With stickers off, frames match /tmp/kedi-ctrl to within the known SwiftShader run-to-run noise (max 2/255).
   The first, non-emissive version only showed as a dim ~4×3 px blob (~130, versus the toy's ~220–250) because the cat-facing side is backlit; glossy → ~200–220.
 - datagen STICK=<wrong|empty|all|right>:<before|after> (eval only). Pure grid rounds → toy cup = hide slot.
+
+## S2 sticker eval + UI (19:55 TRT)
+- 7 configs × 60 pure rounds (seeds 8000000+, grid 0,1,3,8,20 swaps × 0.3,0.7,0.95 speed), rendered on HEAD with STICK=…, in train-cat/data-stick/<cfg> (gitignored).
+  Sanity: the same seed under different configs differs in 40/40 frames; the stickers show as toy-bright blobs, also on lifted cups during the hide.
+- `python3 train-cat/eval_stick.py` (shipped last.pt, not retrained) → src/lib/kedi-stick-stats.ts. **420/420 right, fooled 0×** in every config
+  (wrong/empty/all/right × before/after), mean confidence 0.9985–0.9991. It localises the toy during the hide (toy on the mat) and then tracks cup motion; static pictures carry no evidence.
+- UI: cheat card (checkbox; per-slot sticker buttons, all / empty ones (after the hide) / peel off) and a cat's-eye inset (the real 64×32 frames;
+  a captureNow preview before the hide / after the round, drawn only). Cheated rounds open no ticket and report nothing. Streamed lines stickOn / cheatWon / cheatFooled use real numbers. Card section "Against cheating" ×5 langs.
+- Test: exactly one brain.push; captureNow previews never fed. Fixed the TR seen line (stray % before {p}).
