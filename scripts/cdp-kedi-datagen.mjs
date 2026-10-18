@@ -9,6 +9,13 @@ const [origin, out, W = '6', N = '3000', S0 = '1000000', GRID] = process.argv.sl
 const grid = GRID ? (() => { const [a, b] = GRID.split(':').map((x) => x.split(',').map(Number)); return a.flatMap((n) => b.map((sp) => ({ n, sp }))); })() : null;
 const workers = +W, total = +N, seed0 = +S0;
 mkdirSync(out, { recursive: true });
+// NOTOY=1 (leak ablation, never used for training data): the toy is only drawn while some cup is lifted off the table, so
+// after the hide the frames carry no toy pixels or toy shadow at all — only the moving cups. Labels are unchanged.
+const NOTOY_JS = `(() => { const sc = window.__kedi.s._scene; let toy = null; const cups = [];
+	sc.traverse((o) => { if (o.isMesh && o.geometry.type === 'IcosahedronGeometry') toy = o; if (o.isMesh && o.userData.cup !== undefined) cups.push(o); });
+	const rest = Math.min(...cups.map((c) => c.position.y)); let v = true;
+	Object.defineProperty(toy, 'visible', { get: () => v && cups.some((c) => c.position.y > rest + 0.05), set: (x) => { v = x; } });
+	return cups.length; })()`;
 async function worker(w) {
 	const idx = `${out}/w${w}.jsonl`, bin = `${out}/w${w}.u8`;
 	// resume: keep complete lines whose frames are fully on disk
@@ -17,7 +24,7 @@ async function worker(w) {
 	const fi = openSync(idx, 'a'), fb = openSync(bin, existsSync(bin) ? 'r+' : 'w');
 	if (existsSync(bin) && statSync(bin).size > off) ftruncateSync(fb, off);
 	let b = null, count = 0;
-	const fresh = async () => { b?.close(); b = await launch({ width: 320, height: 200 }); await b.nav(`${origin}/kedi?datagen=1`); if (!(await b.waitFor('!!window.__kedi', 90000))) throw new Error('no __kedi'); await b.ev('window.__kedi.s.mainView(false)'); };
+	const fresh = async () => { b?.close(); b = await launch({ width: 320, height: 200 }); await b.nav(`${origin}/kedi?datagen=1`); if (!(await b.waitFor('!!window.__kedi', 90000))) throw new Error('no __kedi'); await b.ev('window.__kedi.s.mainView(false)'); if (process.env.NOTOY) await b.ev(NOTOY_JS); };
 	await fresh();
 	for (let i = w; i < total; i += workers) {
 		const seed = seed0 + i; if (done.has(seed)) continue;

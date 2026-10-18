@@ -46,3 +46,11 @@ swap events or cup positions). Same three.js scene for training data (headless C
 - Grid eval set done: train-cat/data-grid 900/900 rounds (pure shuffles, 9 swap counts × 5 speeds, 20 each).
 - Main set: 1616/2400 rounds and still growing (pid 56869); train.py reloads it every epoch.
 - Training (pid 74039, 40 epochs): epoch 22 loss 0.57, val 0.64 (n=77). Diag on grid @ep13: 0 swaps 100%, 1 swap ≈91%, 2 swaps ≈52%, ≥3 swaps ≈ chance.
+
+## C4 training phase transition + leak check (≈16:55 TRT)
+- Around epoch 23–25, val final-acc jumped 0.6 → 1.00 and loss 0.57 → 0.08. Grid diag @ep27 (/tmp/k-ep27.pt): 900/900, even 30 swaps at speed 0.95.
+- Too good to trust blindly, so a leak ablation: `NOTOY=1 node scripts/cdp-kedi-datagen.mjs http://localhost:5180 /tmp/kedi-notoy 1 135 7000000 <grid>`.
+  This draws the toy ONLY while some cup is lifted (i.e. during the hide); after that, no toy pixels or toy shadow at all.
+  The control /tmp/kedi-ctrl uses the same seeds with committed HEAD code (:5180) and also checks the snapshot→HEAD gap
+  (the snapshot differs only in the cat (layer 1), ring, timers and shadow-fit points).
+  Same-seed frames differ by ≤3/255. ep27 model: ctrl 66/66, notoy 68/68 → no leak; the cat tracks cup motion from pixels.
