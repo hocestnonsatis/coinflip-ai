@@ -75,3 +75,11 @@ swap events or cup positions). Same three.js scene for training data (headless C
 - The smoke test counted 18 rounds on /api/kedi/stats → reset with `?game=kedi` (dry run first). The counter is now 0.
 - OG regenerated from screens/cat-desktop-reveal.png. Leftover datagen and the :5181 vite are stopped.
 - Later: maybe publish to Hugging Face (not done).
+
+## S1 cheat stickers in the scene (19:20 TRT) — model NOT retrained
+- kedi-scene: a flat yarn-ball picture (CircleGeometry r 0.22 + painted canvas, slightly emissive "glossy print") is a child of each cup on its cat-facing (−z) side at y≈0.25, layer 0.
+  The cat camera sees it; the player camera (+z) is blocked by the cup. Visibility = on[cup] && t ≥ since[cup], evaluated at the capture time,
+  so live play and renderEpisode(…, st) agree. setSticker(cup, on, since=time), stickers().
+- With stickers off, frames match /tmp/kedi-ctrl to within the known SwiftShader run-to-run noise (max 2/255).
+  The first, non-emissive version only showed as a dim ~4×3 px blob (~130, versus the toy's ~220–250) because the cat-facing side is backlit; glossy → ~200–220.
+- datagen STICK=<wrong|empty|all|right>:<before|after> (eval only). Pure grid rounds → toy cup = hide slot.

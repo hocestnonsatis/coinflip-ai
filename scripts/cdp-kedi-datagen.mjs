@@ -11,6 +11,10 @@ const workers = +W, total = +N, seed0 = +S0;
 mkdirSync(out, { recursive: true });
 // NOTOY=1 (leak ablation, never used for training data): the toy is only drawn while some cup is lifted off the table, so
 // after the hide the frames carry no toy pixels or toy shadow at all — only the moving cups. Labels are unchanged.
+// STICK=<which>:<when> (cheat eval, never training data): toy pictures stuck on cups' cat-facing side.
+//  which: wrong (one empty cup) | empty (both empty cups) | all | right (the toy's cup);  when: before (already there at the hide) | after (from the end of the hide)
+// pure grid rounds hide once at slot h with no earlier swaps, so the toy's cup id = h. Labels stay the real toy slot.
+const STICK = process.env.STICK ? process.env.STICK.split(':') : null;
 const NOTOY_JS = `(() => { const sc = window.__kedi.s._scene; let toy = null; const cups = [];
 	sc.traverse((o) => { if (o.isMesh && o.geometry.type === 'IcosahedronGeometry') toy = o; if (o.isMesh && o.userData.cup !== undefined) cups.push(o); });
 	const rest = Math.min(...cups.map((c) => c.position.y)); let v = true;
@@ -34,9 +38,13 @@ async function worker(w) {
 			try {
 				r = await b.ev(`(() => { const { s, anim } = window.__kedi; const ep = anim.randomEpisode(${seed}${grid ? `, { pure: true, maxSwaps: ${grid[i % grid.length].n}, speed: ${grid[i % grid.length].sp} }` : ''}); const R = anim.rng(${seed} ^ 0x5bd1e995);
 				const light = { key: 120 * (0.7 + 0.6 * R()), hemi: 0.7 * (0.6 + 0.8 * R()), kx: 0.6 + (R() - 0.5) * 2.4, kz: 1.4 + (R() - 0.5) * 2.0 };
-				const o = s.renderEpisode(ep.ev, 0, ep.end, light); const n = o.frames.length, all = new Uint8Array(n * 2048); o.frames.forEach((f, k) => all.set(f, k * 2048));
+				const STK = ${JSON.stringify(STICK)}; let st;
+				if (STK) { const h = ep.ev.find((e) => e.k === 'hide'), toyCup = h.slot, others = [0, 1, 2].filter((c) => c !== toyCup), one = others[Math.floor(R() * 2)];
+					const on = [0, 1, 2].map((c) => STK[0] === 'all' || (STK[0] === 'right' && c === toyCup) || (STK[0] === 'empty' && c !== toyCup) || (STK[0] === 'wrong' && c === one));
+					const t1 = STK[1] === 'after' ? h.t + h.d + 0.05 : 0; st = { on, since: [t1, t1, t1] }; }
+				const o = s.renderEpisode(ep.ev, 0, ep.end, light, st); const n = o.frames.length, all = new Uint8Array(n * 2048); o.frames.forEach((f, k) => all.set(f, k * 2048));
 				let bin = ''; for (let k = 0; k < all.length; k += 0x8000) bin += String.fromCharCode.apply(null, all.subarray(k, k + 0x8000));
-				return { b64: btoa(bin), n, swaps: ep.swaps, speed: ep.speed, light, labels: o.poses.map((p) => anim.toySlot(p)).join(''), times: o.times.map((t) => Math.round(t * 1000)), hides: ep.ev.filter((e) => e.k === 'hide').map((e) => [Math.round(e.t * 1000), e.slot]), durs: ep.ev.filter((e) => e.k === 'swap').map((e) => Math.round(e.d * 1000)) }; })()`);
+				return { b64: btoa(bin), n, swaps: ep.swaps, speed: ep.speed, light, labels: o.poses.map((p) => anim.toySlot(p)).join(''), times: o.times.map((t) => Math.round(t * 1000)), hides: ep.ev.filter((e) => e.k === 'hide').map((e) => [Math.round(e.t * 1000), e.slot]), stick: st ?? null, durs: ep.ev.filter((e) => e.k === 'swap').map((e) => Math.round(e.d * 1000)) }; })()`);
 				break;
 			} catch (e) { if (attempt > 2) throw e; console.error(`w${w} seed ${seed}: ${e.message} — restarting chrome`); await fresh(); }
 		}

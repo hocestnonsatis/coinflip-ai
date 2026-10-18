@@ -25,6 +25,17 @@ function yarnTex() {
 	for (let i = 0; i < 26; i++) { g.beginPath(); const y = (i * 37) % 128, a = (i * 53) % 256; g.moveTo(0, y); g.bezierCurveTo(80, y + ((a % 60) - 30), 170, y - ((a % 40) - 20), 256, y); g.stroke(); }
 	const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
+/** The cheat: a flat 2D picture of the yarn ball (same colours and strands as the toy, painted shading, transparent outside). */
+function stickerTex() {
+	const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d')!;
+	g.save(); g.beginPath(); g.arc(64, 64, 62, 0, Math.PI * 2); g.clip();
+	g.fillStyle = '#ffc93a'; g.fillRect(0, 0, 128, 128);
+	g.strokeStyle = '#e09a1e'; g.lineWidth = 3;
+	for (let i = 0; i < 14; i++) { g.beginPath(); const y = (i * 37) % 128, a = (i * 53) % 128; g.moveTo(0, y); g.bezierCurveTo(40, y + ((a % 60) - 30), 85, y - ((a % 40) - 20), 128, y); g.stroke(); }
+	const sh = g.createRadialGradient(46, 42, 6, 64, 64, 64); sh.addColorStop(0, '#ffffff40'); sh.addColorStop(0.55, '#00000000'); sh.addColorStop(1, '#0000008a');
+	g.fillStyle = sh; g.fillRect(0, 0, 128, 128); g.restore();
+	const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
 function cupGeometry() {
 	// upside-down cup: closed top at y = CUP_H, open bottom (rim) at y = 0, slight taper and a lip
 	const p = [new THREE.Vector2(0, CUP_H), new THREE.Vector2(0.3, CUP_H), new THREE.Vector2(0.36, CUP_H - 0.04), new THREE.Vector2(0.43, 0.2),
@@ -72,6 +83,14 @@ export function createKediScene(canvas: HTMLCanvasElement, opts: { onCup: (cup: 
 	const cups = [0, 1, 2].map((i) => { const m = new THREE.Mesh(cupGeo, cupMat); m.castShadow = true; m.receiveShadow = true; m.userData.cup = i; scene.add(m); return m; });
 	const band = new THREE.MeshStandardMaterial({ color: '#f1e3c4', roughness: 0.5 });
 	for (const c of cups) { const b = new THREE.Mesh(new THREE.TorusGeometry(0.405, 0.03, 8, 40), band); b.rotation.x = Math.PI / 2; b.position.y = 0.42; c.add(b); }
+	// cheat stickers: a toy picture on the cat-facing (−z) side of each cup, layer 0 (the cat camera sees them; the player's camera
+	// looks from +z, so the cup itself hides them). Invisible unless switched on: with no stickers the frames are bit-identical.
+	const stickTex = stickerTex(); // glossy print: a little emissive so it reads about as bright as the real (front-lit) toy in the cat camera
+	const stickMat = new THREE.MeshStandardMaterial({ map: stickTex, emissiveMap: stickTex, emissive: '#ffffff', emissiveIntensity: 0.55, transparent: true, alphaTest: 0.5, roughness: 0.5, polygonOffset: true, polygonOffsetFactor: -2 });
+	const stickers = cups.map((c) => { const m = new THREE.Mesh(new THREE.CircleGeometry(0.22, 24), stickMat); m.position.set(0, 0.25, -0.49);
+		m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0.1, -1).normalize()); m.visible = false; c.add(m); return m; });
+	let stick = { on: [false, false, false], since: [0, 0, 0] };
+	const applyStickers = (t: number) => stickers.forEach((m, i) => { m.visible = stick.on[i] && t >= stick.since[i]; });
 	const toy = new THREE.Mesh(new THREE.IcosahedronGeometry(0.22, 2), new THREE.MeshStandardMaterial({ map: yarnTex(), roughness: 0.9 }));
 	toy.castShadow = true; scene.add(toy);
 
@@ -132,9 +151,8 @@ export function createKediScene(canvas: HTMLCanvasElement, opts: { onCup: (cup: 
 		toy.position.set(p.toy.x, TABLE_Y + 0.215, p.toy.z); toy.visible = p.toy.on; toy.rotation.y = p.toy.x * 1.7;
 	}
 	/** Render the cat camera at pose p and return the 64×32 grayscale frame (row 0 = bottom, like readPixels). */
-	function captureAt(p: Pose): Uint8Array {
-		const saveK = knocked.size; if (saveK) { /* knocked cups never appear in captured frames (capture stops before) */ }
-		apply(p, time);
+	function captureAt(p: Pose, tk = time): Uint8Array {
+		apply(p, time); applyStickers(tk);
 		renderer.setRenderTarget(rt); renderer.render(scene, catCam); renderer.setRenderTarget(null);
 		renderer.readRenderTargetPixels(rt, 0, 0, RT_W, RT_H, px);
 		const f = new Uint8Array(CAM_W * CAM_H);
@@ -150,7 +168,7 @@ export function createKediScene(canvas: HTMLCanvasElement, opts: { onCup: (cup: 
 		if (!capturing) return;
 		while (capT0 + nextK / FPS <= time) {
 			const tk = capT0 + nextK / FPS; nextK++;
-			const f = captureAt(pose(ev, tk));
+			const f = captureAt(pose(ev, tk), tk);
 			if (lastFrame && same(f, lastFrame)) continue;
 			lastFrame = f; opts.onFrame?.(f, tk);
 		}
@@ -239,7 +257,7 @@ export function createKediScene(canvas: HTMLCanvasElement, opts: { onCup: (cup: 
 		if (running) time += dt;
 		pump();
 		if (timers.length) { const due = timers.filter((x) => x.t <= time); if (due.length) { timers = timers.filter((x) => x.t > time); for (const x of due) x.f(); } }
-		shown = pose(ev, time); apply(shown, time);
+		shown = pose(ev, time); apply(shown, time); applyStickers(time);
 		animateCat(now, dt);
 		vignette.uniforms.time.value = now % 100;
 		if (mainOn) composer.render();
@@ -264,7 +282,7 @@ export function createKediScene(canvas: HTMLCanvasElement, opts: { onCup: (cup: 
 		/** Replace the round's timeline (game time restarts at 0). Capture starts with startCapture(). */
 		/** Run f once game time reaches t (sounds and UI follow the animation even when frames are slow). */
 		at(t: number, f: () => void) { timers.push({ t, f }); },
-		reset() { timers = []; ev = []; time = 0; nextK = 0; capturing = false; lastFrame = null; knocked.clear(); selCup = null; ring.visible = false; },
+		reset() { stick = { on: stick.on, since: [0, 0, 0] }; timers = []; ev = []; time = 0; nextK = 0; capturing = false; lastFrame = null; knocked.clear(); selCup = null; ring.visible = false; },
 		push(e: Ev) { ev.push(e); },
 		events: () => ev,
 		time: () => time,
@@ -283,15 +301,18 @@ export function createKediScene(canvas: HTMLCanvasElement, opts: { onCup: (cup: 
 		select(cup: number | null) { selCup = cup; ring.visible = cup !== null; },
 		pose: () => shown,
 		/** Data generator / tests: render the cat camera for a whole timeline at fixed-rate times, without the realtime clock. */
-		renderEpisode(e: Ev[], t0: number, end: number, light: Light = LIGHT0) {
-			const save = ev; ev = e; setLight(light);
+		renderEpisode(e: Ev[], t0: number, end: number, light: Light = LIGHT0, st?: { on: boolean[]; since: number[] }) {
+			const save = ev, saveSt = stick; ev = e; setLight(light); if (st) stick = { on: [...st.on], since: [...st.since] };
 			const frames: Uint8Array[] = [], times: number[] = [], poses: Pose[] = [];
 			let prev: Uint8Array | null = null;
-			for (let k = 0; t0 + k / FPS <= end; k++) { const tk = t0 + k / FPS, p = pose(e, tk), f = captureAt(p); if (prev && same(f, prev)) continue; prev = f; frames.push(f); times.push(tk); poses.push(p); }
-			ev = save; setLight(LIGHT0);
+			for (let k = 0; t0 + k / FPS <= end; k++) { const tk = t0 + k / FPS, p = pose(e, tk), f = captureAt(p, tk); if (prev && same(f, prev)) continue; prev = f; frames.push(f); times.push(tk); poses.push(p); }
+			ev = save; stick = saveSt; setLight(LIGHT0);
 			return { frames, times, poses };
 		},
 		captureNow: () => captureAt(pose(ev, time)),
+		/** Cheat stickers by cup id: on/off, visible from game time `since` (0 = already there before the hide). */
+		setSticker(cup: number, on: boolean, since = time) { stick = { on: stick.on.map((v, i) => (i === cup ? on : v)), since: stick.since.map((v, i) => (i === cup ? (on ? since : 0) : v)) }; },
+		stickers: () => ({ on: [...stick.on], since: [...stick.since] }),
 		/** Data generator: stop drawing the main view (the cat camera still renders on demand). */
 		mainView(on: boolean) { mainOn = on; },
 		_cam: catCam, _r: renderer, _key: key, _scene: scene, _rt: rt, _apply: (p: Pose) => apply(p, time), _capAt: (p: Pose) => captureAt(p),
