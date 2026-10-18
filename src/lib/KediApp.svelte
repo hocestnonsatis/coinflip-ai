@@ -381,11 +381,11 @@
 						<thead><tr><th>{z.fpsUnit}</th>{#each KEDI_SLEEPY.speeds as sp (sp.s)}<th>{t.speeds[Math.min(4, Math.floor(sp.s * 5))]}<br /><small>{sp.ms} ms</small></th>{/each}</tr></thead>
 						<tbody>{#each KEDI_SLEEPY.fps as f, i (f)}<tr><th>{f}</th>{#each KEDI_SLEEPY.speeds as _sp, j (j)}{@const cc = sleepyBySpeed(i, j)}<td style:--a={cc[0] / Math.max(1, cc[1])} title={`${cc[0]}/${cc[1]}`}>{cell(cc)}</td>{/each}</tr>{/each}</tbody>
 					</table>
-					<p class="acc-s">{z.bySwaps}</p>
-					<table class="acc mono">
+					<p class="acc-s">{z.bySwaps} · %</p>
+					<div class="accw"><table class="acc wide mono">
 						<thead><tr><th>{z.fpsUnit}</th>{#each KEDI_SLEEPY.swaps as n (n)}<th>{n}</th>{/each}</tr></thead>
-						<tbody>{#each KEDI_SLEEPY.fps as f, i (f)}<tr><th>{f}</th>{#each KEDI_SLEEPY.swaps as _n, k (k)}{@const cc = sleepyBySwaps(i, k)}<td style:--a={cc[0] / Math.max(1, cc[1])} title={`${cc[0]}/${cc[1]}`}>{cell(cc)}</td>{/each}</tr>{/each}</tbody>
-					</table>
+						<tbody>{#each KEDI_SLEEPY.fps as f, i (f)}<tr><th>{f}</th>{#each KEDI_SLEEPY.swaps as _n, k (k)}{@const cc = sleepyBySwaps(i, k)}<td style:--a={cc[0] / Math.max(1, cc[1])} title={`${cc[0]}/${cc[1]}`}>{Math.round((100 * cc[0]) / Math.max(1, cc[1]))}</td>{/each}</tr>{/each}</tbody>
+					</table></div>
 					<p class="acc-n">{z.cardNote}</p>
 				{/if}
 			</details>
@@ -468,6 +468,9 @@
 	.acc th, .acc td { padding: 2px 1px; overflow: hidden; text-overflow: ellipsis; text-align: center; border: 1px solid #ffffff14; }
 	.acc td { background: color-mix(in srgb, #36e27e calc(var(--a) * 55%), transparent); }
 	.acc-n { font-size: 10px; opacity: 0.6; margin: 4px 0 0; }
+	/* fps × swaps has 10 columns: natural widths, tighter cells, scroll sideways if the panel is still too narrow */
+	.accw { overflow-x: auto; -webkit-overflow-scrolling: touch; } .acc.wide { table-layout: auto; font-size: 9px; letter-spacing: -0.02em; min-width: 100%; }
+	.acc.wide th, .acc.wide td { padding: 2px 1px; overflow: visible; text-overflow: clip; white-space: nowrap; }
 	@media (max-aspect-ratio: 1/1), (max-width: 760px) {
 		.panel { left: 0; right: 0; top: auto; bottom: 0; width: auto; height: 40dvh; max-height: none; border-radius: 18px 18px 0 0; padding: 8px 12px max(8px, env(safe-area-inset-bottom)); }
 		.hint, .engine { display: none; }
