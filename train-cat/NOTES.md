@@ -55,3 +55,9 @@ swap events or cup positions). Same three.js scene for training data (headless C
   (the snapshot differs only in the cat (layer 1), ring, timers and shadow-fit points).
   Same-seed frames differ by ≤3/255. ep27 model: ctrl 66/66, notoy 68/68 → no leak; the cat tracks cup motion from pixels.
 - Ablation set kept at train-cat/data-notoy (135 rounds, seeds 7000000+, grid cells, HEAD code). eval.py reports it as 'notoy', and the model card shows it.
+
+## C5 model trained + exported (17:25 TRT)
+- 40 epochs done (meta: 94 min × 4 threads). best.pt = epoch 25 (the first epoch with val 1.00, n=83, a tie-break artefact); last.pt = epoch 39 (val 1.00, n=117).
+- eval best.pt: grid 900/900 but blank feed P ∈ [0.08, 0.77] ✗. eval last.pt: grid 900/900, test 240/240, mirror 240/240, notoy 135/135, blank P ∈ [0.29, 0.36] ✓ → **shipped last.pt**.
+- `python3 train-cat/export.py train-cat/ckpt/last.pt`: ONNX 114,132 B, TS/torch/ONNX parity 6e-7, test blank → [0.343, 0.336, 0.322].
+- kedi-stats counts the 2,003 train rounds seen in the last epoch (561,703 frames); the set grew during training.

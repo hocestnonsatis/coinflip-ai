@@ -43,9 +43,11 @@ if os.path.isdir(f'{HERE}/data-notoy'):
 acc = lambda rs: sum(r['ok'] for r in rs) / max(1, len(rs))
 log = open(f'{HERE}/ckpt/log.txt').read().strip().split('\n') if os.path.exists(f'{HERE}/ckpt/log.txt') else []
 meta = json.load(open(f'{HERE}/ckpt/meta.json')) if os.path.exists(f'{HERE}/ckpt/meta.json') else {}
+# the training set grew while training ran: count only the rounds the final epoch actually saw (lowest seeds per worker ≈ first written)
+TR = sorted((e for e in eps if e['seed'] % 20 not in (0, 10, 15)), key=lambda e: e['seed'])[:meta.get('train_rounds_last_epoch', 10**9)]
 out = {
     'ckpt': os.path.relpath(ck, ROOT), 'params': nparams(m),
-    'train_episodes': sum(1 for e in eps if e['seed'] % 20 not in (0, 10, 15)), 'train_frames': int(sum(e['n'] for e in eps if e['seed'] % 20 not in (0, 10, 15))), 'val_episodes': len(val),
+    'train_episodes': len(TR), 'train_frames': int(sum(e['n'] for e in TR)), 'val_episodes': len(val),
     'val_acc': acc(rv), 'val_ok': sum(r['ok'] for r in rv),
     'grid': {'swaps': SW, 'speeds': speeds, 'cells': cells, 'acc': acc(rg), 'n': len(rg)},
     'blank': {'maxP': float(P.max()), 'minP': float(P.min()), 'n': len(P)}, 'mirror': {'agree': agree, 'n': n}, 'notoy': notoy,
