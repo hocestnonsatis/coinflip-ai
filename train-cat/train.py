@@ -126,37 +126,37 @@ def table(res):
     return out
 
 def train(epochs=30, bs=24, lr=3e-3):
-    eps, mm = load(f'{HERE}/data')
+    """Resumable. Reloads the dataset every epoch (so it can start while the generator is still writing rounds).
+    LR: 1 warm-up epoch, then cosine to 3 % of lr."""
     rnd = random.Random(1)
-    val = [i for i, e in enumerate(eps) if e['seed'] % 20 == 0]; tr = [i for i, e in enumerate(eps) if e['seed'] % 20 not in (0, 10, 15)]  # 10, 15 = test split (eval.py), never seen
-    print(f'{len(eps)} episodes, {sum(e["n"] for e in eps)} frames; train {len(tr)}, val {len(val)}', flush=True)
     model = make(); print('arch', ARCH, 'params', nparams(model), flush=True)
     opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
-    steps_per = math.ceil(len(tr) / bs); total = epochs * steps_per
-    sched = torch.optim.lr_scheduler.OneCycleLR(opt, max_lr=lr, total_steps=total, pct_start=0.08)
     ep0, best, secs = 0, -1, 0.0
     CK = os.environ.get('KEDI_CKPT', f'{HERE}/ckpt'); os.makedirs(CK, exist_ok=True); ck = f'{CK}/last.pt'
     if os.path.exists(ck):
-        s = torch.load(ck, weights_only=False); model.load_state_dict(s['model']); opt.load_state_dict(s['opt']); sched.load_state_dict(s['sched']); ep0 = s['epoch'] + 1; best = s.get('best', -1); secs = s.get('secs', 0.0)
+        s = torch.load(ck, weights_only=False); model.load_state_dict(s['model']); opt.load_state_dict(s['opt']); ep0 = s['epoch'] + 1; best = s.get('best', -1); secs = s.get('secs', 0.0)
         rnd.setstate(s['rnd']); print('resumed at epoch', ep0, flush=True)
-    veps = [eps[i] for i in val]
     for ep in range(ep0, epochs):
+        eps, mm = load(f'{HERE}/data')
+        val = [i for i, e in enumerate(eps) if e['seed'] % 20 == 0]; tr = [i for i, e in enumerate(eps) if e['seed'] % 20 not in (0, 10, 15)]  # 10, 15 = test split (eval.py), never seen
+        veps = [eps[i] for i in val]
+        cur = lr * (0.3 if ep == 0 else 0.03 + 0.97 * 0.5 * (1 + math.cos(math.pi * (ep - 1) / max(1, epochs - 1))))
+        for g in opt.param_groups: g['lr'] = cur
         t0 = time.time(); order = tr[:]; rnd.shuffle(order)
-        # length-bucketed batches (less padding): sort chunks of 20 batches by length
-        chunks = [sorted(order[k:k + bs * 20], key=lambda i: eps[i]['n']) for k in range(0, len(order), bs * 20)]
+        chunks = [sorted(order[k:k + bs * 20], key=lambda i: eps[i]['n']) for k in range(0, len(order), bs * 20)]  # length buckets (less padding)
         bl = [c[k:k + bs] for c in chunks for k in range(0, len(c), bs)]; rnd.shuffle(bl)
         tot = 0.0
-        for b_i, ids in enumerate(bl):
+        for ids in bl:
             X, Y, Wt, U, L = batch(eps, mm, ids, rnd)
             loss = loss_fn(model(X), Y, Wt, U)
-            opt.zero_grad(); loss.backward(); nn.utils.clip_grad_norm_(model.parameters(), 1.0); opt.step(); sched.step()
+            opt.zero_grad(); loss.backward(); nn.utils.clip_grad_norm_(model.parameters(), 1.0); opt.step()
             tot += loss.item()
         secs += time.time() - t0
         res = evaluate(model, veps, mm); a = table(res)['overall']
-        msg = f'epoch {ep} loss {tot / len(bl):.4f} val_final_acc {a:.4f} ({time.time() - t0:.0f}s)'; print(msg, flush=True)
+        msg = f'epoch {ep} lr {cur:.2e} train {len(tr)} loss {tot / len(bl):.4f} val_final_acc {a:.4f} (n={len(veps)}, {time.time() - t0:.0f}s)'; print(msg, flush=True)
         if a > best: best = a; torch.save({'model': model.state_dict(), 'epoch': ep, 'val': a}, f'{CK}/best.pt')
-        torch.save({'model': model.state_dict(), 'opt': opt.state_dict(), 'sched': sched.state_dict(), 'epoch': ep, 'best': best, 'rnd': rnd.getstate(), 'secs': secs}, ck)
-        json.dump({'epochs': ep + 1, 'minutes': round(secs / 60), 'procs': torch.get_num_threads()}, open(f'{CK}/meta.json', 'w'))
+        torch.save({'model': model.state_dict(), 'opt': opt.state_dict(), 'epoch': ep, 'best': best, 'rnd': rnd.getstate(), 'secs': secs}, ck)
+        json.dump({'epochs': ep + 1, 'minutes': round(secs / 60), 'procs': torch.get_num_threads(), 'train_rounds_last_epoch': len(tr)}, open(f'{CK}/meta.json', 'w'))
         with open(f'{CK}/log.txt', 'a') as f: f.write(msg + '\n')
 
 if __name__ == '__main__':

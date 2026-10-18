@@ -36,3 +36,8 @@ swap events or cup positions). Same three.js scene for training data (headless C
   the repo's tracked files there if the box was reset — the scene files must be the committed ones).
   Then: `ARCH=belief THREADS=7 nohup python3 train-cat/train.py train --epochs 30 > train-cat/ckpt/train.out 2>&1 &` (resumes from ckpt/last.pt),
   `python3 train-cat/export.py && python3 train-cat/eval.py`.
+
+## C4 browser integration (untrained weights) — verified
+- `node scripts/cdp-kedi.mjs http://localhost:5180 /tmp/kshots/cat` runs end to end: 5 rounds, 2 blank, 2 mirror, no console errors, engine wasm ~0.7–1.3 ms/frame. With untrained weights blank is OK and mirror fails, as expected.
+- scripts/og-kedi.py <shot> "<subtitle>" → static/og-kedi.png (run again on the final prod shot).
+- tests/kedi.test.ts added to the npm test chain.
