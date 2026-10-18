@@ -67,3 +67,11 @@ swap events or cup positions). Same three.js scene for training data (headless C
 - Accuracy table: count moved to the note (20 per cell), fixed layout so it fits the panel.
 - cdp-kedi.mjs now also plays 9 real-user rounds (click-click and drag swaps, rapid/slow/2.5 s pauses, mixed with shuffle ×12/20/30 at slider 1.0 = 150 ms per swap, and slider 0 = 900 ms). Slider extremes are inside the training range (speed ∈ [0,1]); manual swaps are 550 ms, queued with a 20 ms gap, also in the training range.
 - Dev run: every guess matched the expected slot by probs; __kediUi.result was a $state proxy (didn't serialize) → now a plain copy.
+
+## C7 deployed (≈18:40 TRT)
+- npm test ✓, svelte-check 0/0, build ✓. wrangler deploy (the first two tries failed with "fetch failed", the third worked) → version 4f5dd908-5355-44ef-bced-0231ef0635bd; redeployed with the prod OG → **8792bfcd-58af-4756-8202-70ace086b46a**.
+- Prod play-through `node scripts/cdp-kedi.mjs https://tiny-models.anil-oz.workers.dev screens/cat`: 0 console errors; normal 5/5; manual 9/9
+  (click and drag, rapid/slow/2.5 s pauses, shuffle ×12/×20/×30 at slider 1.0 = 150 ms per swap, ×6 at slider 0); blank → [0.342, 0.336, 0.322]; mirror 2/2 flipped.
+- The smoke test counted 18 rounds on /api/kedi/stats → reset with `?game=kedi` (dry run first). The counter is now 0.
+- OG regenerated from screens/cat-desktop-reveal.png. Leftover datagen and the :5181 vite are stopped.
+- Later: maybe publish to Hugging Face (not done).
