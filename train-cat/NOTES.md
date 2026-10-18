@@ -41,3 +41,8 @@ swap events or cup positions). Same three.js scene for training data (headless C
 - `node scripts/cdp-kedi.mjs http://localhost:5180 /tmp/kshots/cat` runs end to end: 5 rounds, 2 blank, 2 mirror, no console errors, engine wasm ~0.7–1.3 ms/frame. With untrained weights blank is OK and mirror fails, as expected.
 - scripts/og-kedi.py <shot> "<subtitle>" → static/og-kedi.png (run again on the final prod shot).
 - tests/kedi.test.ts added to the npm test chain.
+
+## C3 status (16:26 TRT)
+- Grid eval set done: train-cat/data-grid 900/900 rounds (pure shuffles, 9 swap counts × 5 speeds, 20 each).
+- Main set: 1616/2400 rounds and still growing (pid 56869); train.py reloads it every epoch.
+- Training (pid 74039, 40 epochs): epoch 22 loss 0.57, val 0.64 (n=77). Diag on grid @ep13: 0 swaps 100%, 1 swap ≈91%, 2 swaps ≈52%, ≥3 swaps ≈ chance.
