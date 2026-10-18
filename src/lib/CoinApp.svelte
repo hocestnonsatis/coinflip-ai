@@ -12,6 +12,7 @@
 	import { sfx } from '#lib/sound';
 	import Feedback from './Feedback.svelte';
 	import { REGEN, pickOther } from '#lib/i18n-regen';
+	import { USAGE, costOf, formatCost } from '#lib/i18n-usage';
 
 	type Phase = 'loading' | 'ready' | 'thinking' | 'flipping' | 'done';
 	let canvas: HTMLCanvasElement;
@@ -92,6 +93,9 @@
 	// ↻ Regenerate: re-sample the comment for the same result (the coin has already landed)
 	let lastHold = 0, lineIdx = -1;
 	let regens = $state(0);
+	// 🧾 session bill (parody): every flip is a request; question, result and streamed comment are billed tokens
+	let usage = $state({ req: 0, tok: 0 });
+	const u = $derived(USAGE[lang]);
 	const poolFor = (s: Side) => (s === 'yazi' ? [...t.yesLines, ...t.bothLines] : s === 'tura' ? [...t.noLines, ...t.bothLines] : t.maybeLines);
 	function comment() {
 		if (!last) return;
@@ -99,11 +103,14 @@
 		if (!q) { streamOracle(''); return; }
 		const pool = poolFor(last.result);
 		lineIdx = pickOther(pool.length, lineIdx);
-		streamOracle(`“${q}?” — ${fill(pool[lineIdx], { conf: last.confidence, tps: last.tps, ms: lastHold, z: last.z })}`);
+		const text = `“${q}?” — ${fill(pool[lineIdx], { conf: last.confidence, tps: last.tps, ms: lastHold, z: last.z })}`;
+		usage.tok += tokenize(text).length;
+		streamOracle(text);
 	}
 	function regenerate() {
 		if (!last || busy || !oracle) return;
 		regens++;
+		usage.req++;
 		push(REGEN[lang].log(regens + 1));
 		comment();
 	}
@@ -212,6 +219,7 @@
 			history = [out.result, ...history].slice(0, 40);
 			phase = 'done';
 			lastHold = holdMs; lineIdx = -1; regens = 0;
+			usage.req++; usage.tok += 1 + (asked ? tokenize(asked).length : 0);
 			comment();
 			if (out.result === 'dik') push(`★ ${t.reveal} (w = ${WEIGHT > 0 ? '+1' : WEIGHT}, log₂3 = ${num(BITS, 2)})`);
 			push(t.output(label(out.result).toLocaleUpperCase(lang), pct.format(out.confidence)));
@@ -284,6 +292,7 @@
 			{/if}
 		</div>
 		<p class="engine mono" title="onnxruntime-web">{t.engineLabel}: {engineName(engine)}</p>
+		{#if usage.req}<p class="usage mono" title={u.note}>🧾 {u.label}: {u.req(usage.req)} · {u.tok(usage.tok)} · <b>{formatCost(costOf(usage.tok), lang)}</b><span class="sr-only"> · {u.note}</span></p>{/if}
 		<div class="log mono">{#each log as l, i (i + l)}<div>{l}</div>{/each}</div>
 		<form class="ask" onsubmit={(e) => e.preventDefault()}>
 			<p class="pitch">{t.pitch}</p>
@@ -341,6 +350,7 @@
 	.stats small { display: block; font-size: 10px; opacity: 0.55; text-transform: uppercase; }
 	.engine { margin: 6px 0 0; text-align: center; font-size: 10px; letter-spacing: 0.04em; opacity: 0.5; }
 	.stats b { font-size: 14px; }
+	.usage { margin: 3px 0 0; text-align: center; font-size: 10px; letter-spacing: 0.02em; opacity: 0.55; cursor: help; overflow-wrap: anywhere; } .usage b { color: #8ff5b7; font-weight: 600; }
 	.log { font-size: 11px; opacity: 0.7; margin: 10px 0; min-height: 3.6em; line-height: 1.2em; }
 	.log div:last-child { color: #ffd36b; }
 	button.hold { width: 100%; padding: 16px; font-size: 18px; font-weight: 800; border: 0; border-radius: 14px; cursor: pointer; color: #1a1205; background: linear-gradient(180deg, #ffe08a, #e9a23b); box-shadow: 0 8px 30px #ffae3a55, inset 0 1px 0 #fff8; transition: transform 0.15s, filter 0.2s; }

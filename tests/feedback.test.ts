@@ -26,3 +26,17 @@ for (const len of [1, 2, 3, 10]) for (let prev = -1; prev < len; prev++) for (le
 }
 assert.equal(pickOther(5, 4, () => 0.999999), 3);
 console.log('regen: 5 languages, pickOther OK');
+
+// 🧾 Usage bill: all languages present, counts appear in the strings, cost stays absurdly tiny and formats without exponent.
+import { USAGE, costOf, formatCost } from '../src/lib/i18n-usage.ts';
+assert.deepEqual(Object.keys(USAGE).sort(), [...langs].sort());
+for (const l of langs) {
+	const u = USAGE[l];
+	assert.ok(u.label.trim() && u.note.trim(), `${l} usage label/note`);
+	for (const n of [1, 2, 42]) { assert.ok(u.req(n).includes(String(n)), `${l} req ${n}`); assert.ok(u.tok(n).includes(String(n)), `${l} tok ${n}`); }
+	const s = formatCost(costOf(41), l);
+	assert.ok(/41/.test(s) && !/e/i.test(s.replace(/[^0-9eE]/g, '')), `${l} cost format: ${s}`);
+}
+assert.equal(costOf(0), 0);
+assert.ok(Math.abs(costOf(1e6) - 1e-7) < 1e-20 && costOf(10) < 1e-11);
+console.log(`usage: ${langs.length} languages, ${formatCost(costOf(41), 'en')} for 41 tokens`);
