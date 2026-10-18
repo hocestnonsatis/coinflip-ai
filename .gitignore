@@ -19,3 +19,4 @@ train-okey/__pycache__/
 train-cat/data/
 train-cat/ckpt/
 train-cat/data-grid/
+train-cat/__pycache__/
