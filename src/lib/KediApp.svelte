@@ -195,7 +195,7 @@
 		train: `PyTorch (CPU), ${KS.epochs} epochs ≈ ${KS.minutes} min × ${KS.procs} CPU; dense per‑frame cross‑entropy`,
 		overall: KS.overall.n ? `${pct1.format(KS.overall.w / KS.overall.n)} (${nf.format(KS.overall.w)}/${nf.format(KS.overall.n)})` : '—', random: pct1.format(1 / 3),
 		size: `${(KS.onnxBytes / 1024).toLocaleString(lang, { maximumFractionDigits: 0 })} KB ONNX`,
-		blank: KS.blank.n ? `blank feed → P ∈ [${pct1.format(KS.blank.minP)}, ${pct1.format(KS.blank.maxP)}] · mirrored feed → mirrored answer in ${nf.format(KS.mirror.agree)}/${nf.format(KS.mirror.n)} rounds` : '—'
+		blank: KS.blank.n ? `blank feed → P ∈ [${pct1.format(KS.blank.minP)}, ${pct1.format(KS.blank.maxP)}] · mirrored feed → mirrored answer in ${nf.format(KS.mirror.agree)}/${nf.format(KS.mirror.n)} rounds${KS.notoy.n ? ` · toy erased from every frame after the hide → still right in ${nf.format(KS.notoy.ok)}/${nf.format(KS.notoy.n)} (it tracks the cups, not the toy)` : ''}` : '—'
 	}));
 
 	onMount(() => {

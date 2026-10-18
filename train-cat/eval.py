@@ -3,10 +3,11 @@
 python3 train-cat/eval.py [ckpt]"""
 import sys, os, json, random, numpy as np, torch, torch.nn.functional as F
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from train import Kedi, load, evaluate, batch, nparams, H_, W_
+from train import Kedi, KediB, load, evaluate, batch, nparams, H_, W_
 HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
 ck = sys.argv[1] if len(sys.argv) > 1 else f'{HERE}/ckpt/best.pt'
-m = Kedi(); m.load_state_dict(torch.load(ck, weights_only=False)['model']); m.eval()
+sd = torch.load(ck, weights_only=False)['model']
+m = KediB() if sd['head.weight'].shape[0] == 12 else Kedi(); m.load_state_dict(sd); m.eval()
 
 eps, mm = load(f'{HERE}/data'); val = [e for e in eps if e['seed'] % 20 in (10, 15)]  # test split: not trained on, not used for checkpoint selection
 rv = evaluate(m, val, mm)
@@ -35,6 +36,10 @@ with torch.no_grad():
         a = F.softmax(m(X), -1); b = F.softmax(m(torch.flip(X, [3])), -1)
         for j in range(len(ids)):
             pa = int(a[j, L[j] - 1].argmax()); pb = int(b[j, L[j] - 1].argmax()); agree += int(pb == 2 - pa); n += 1
+# honesty 3 (leak ablation): rounds rendered with NOTOY=1 (toy drawn only while a cup is lifted, i.e. during the hide)
+notoy = None
+if os.path.isdir(f'{HERE}/data-notoy'):
+    neps, nmm = load(f'{HERE}/data-notoy'); rn = evaluate(m, neps, nmm); notoy = {'ok': sum(r['ok'] for r in rn), 'n': len(rn)}
 acc = lambda rs: sum(r['ok'] for r in rs) / max(1, len(rs))
 log = open(f'{HERE}/ckpt/log.txt').read().strip().split('\n') if os.path.exists(f'{HERE}/ckpt/log.txt') else []
 meta = json.load(open(f'{HERE}/ckpt/meta.json')) if os.path.exists(f'{HERE}/ckpt/meta.json') else {}
@@ -43,7 +48,7 @@ out = {
     'train_episodes': sum(1 for e in eps if e['seed'] % 20 not in (0, 10, 15)), 'train_frames': int(sum(e['n'] for e in eps if e['seed'] % 20 not in (0, 10, 15))), 'val_episodes': len(val),
     'val_acc': acc(rv), 'val_ok': sum(r['ok'] for r in rv),
     'grid': {'swaps': SW, 'speeds': speeds, 'cells': cells, 'acc': acc(rg), 'n': len(rg)},
-    'blank': {'maxP': float(P.max()), 'minP': float(P.min()), 'n': len(P)}, 'mirror': {'agree': agree, 'n': n},
+    'blank': {'maxP': float(P.max()), 'minP': float(P.min()), 'n': len(P)}, 'mirror': {'agree': agree, 'n': n}, 'notoy': notoy,
     'by_swaps_val': {}, **meta
 }
 for lo, hi in [(0, 0), (1, 5), (6, 15), (16, 40)]:
@@ -56,7 +61,7 @@ with open(f'{ROOT}/src/lib/kedi-stats.ts', 'w') as f:
     f.write('// (seed % 20 in {10, 15}: never trained on, not used to pick the checkpoint); cells = held-out pure-shuffle rounds per swaps × speed: [correct, rounds].\n')
     f.write('export const KEDI_STATS = ' + json.dumps({
         'params': out['params'], 'episodes': out['train_episodes'], 'frames': out['train_frames'], 'epochs': meta.get('epochs', 0), 'minutes': meta.get('minutes', 0), 'procs': meta.get('procs', 0), 'onnxBytes': ob,
-        'overall': {'w': out['val_ok'], 'n': len(rv)}, 'blank': {'maxP': round(out['blank']['maxP'], 4), 'minP': round(out['blank']['minP'], 4), 'n': len(P)}, 'mirror': out['mirror'],
+        'overall': {'w': out['val_ok'], 'n': len(rv)}, 'blank': {'maxP': round(out['blank']['maxP'], 4), 'minP': round(out['blank']['minP'], 4), 'n': len(P)}, 'mirror': out['mirror'], 'notoy': notoy or {'ok': 0, 'n': 0},
         'swaps': SW, 'speeds': speeds, 'cells': cells}) + ';\n')
-print(json.dumps({k: out[k] for k in ['val_acc', 'val_episodes', 'blank', 'mirror', 'by_swaps_val']}))
+print(json.dumps({k: out[k] for k in ['val_acc', 'val_episodes', 'blank', 'mirror', 'notoy', 'by_swaps_val']}))
 for i, s in enumerate(SW): print(f'{s:>3} swaps: ' + '  '.join(f'{c[0]}/{c[1]}' for c in cells[i]))

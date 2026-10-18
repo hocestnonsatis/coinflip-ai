@@ -54,3 +54,4 @@ swap events or cup positions). Same three.js scene for training data (headless C
   The control /tmp/kedi-ctrl uses the same seeds with committed HEAD code (:5180) and also checks the snapshot→HEAD gap
   (the snapshot differs only in the cat (layer 1), ring, timers and shadow-fit points).
   Same-seed frames differ by ≤3/255. ep27 model: ctrl 66/66, notoy 68/68 → no leak; the cat tracks cup motion from pixels.
+- Ablation set kept at train-cat/data-notoy (135 rounds, seeds 7000000+, grid cells, HEAD code). eval.py reports it as 'notoy', and the model card shows it.
