@@ -76,6 +76,11 @@ import { RULES_OKEY, RULES_KEDI } from '../src/lib/server/tavla-stats-core.ts';
 		assert.equal(await verifyTicket(S, ok.gameId, 'kedi'), null, 'okey ticket is not a kedi ticket');
 		const kb = { winner: 'model', moves: 0, gameId: k.gameId };
 		assert.ok((await checkResult(S, kb, now + RULES_KEDI.minMs, 'kedi', RULES_KEDI)).ok, 'cat win with 0 swaps');
+		// cheat / sleepy rounds: own ticket kind, so a ticket can never count on both counters
+		const kx = await issueTicket(S, now, 'kedix');
+		assert.equal(await verifyTicket(S, k.gameId, 'kedix'), null, 'normal kedi ticket is not a kedix ticket');
+		assert.equal(await verifyTicket(S, kx.gameId, 'kedi'), null, 'kedix ticket is not a normal kedi ticket');
+		assert.ok((await checkResult(S, { winner: 'model', gammon: false, moves: 3, gameId: kx.gameId }, now + RULES_KEDI.minMs, 'kedix', RULES_KEDI)).ok, 'kedix result ok');
 		assert.ok((await checkResult(S, { ...kb, winner: 'human', moves: 37 }, now + 60_000, 'kedi', RULES_KEDI)).ok);
 		const d = await checkResult(S, { ...kb, winner: 'draw' }, now + 60_000, 'kedi', RULES_KEDI); assert.ok(!d.ok && d.status === 400, 'no draws');
 		const f = await checkResult(S, kb, now + RULES_KEDI.minMs - 1, 'kedi', RULES_KEDI); assert.ok(!f.ok && f.status === 422, 'too fast');

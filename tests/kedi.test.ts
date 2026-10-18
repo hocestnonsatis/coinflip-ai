@@ -5,6 +5,8 @@ import { readFileSync } from 'node:fs';
 import { pose, toySlot, randomEpisode, shuffleEvents, rng, swapDur, endOf, SLOT_X, HIDE_D, type Ev } from '../src/lib/kedi-anim.ts';
 import { step, unpack, b64ToF32, paramCount, initState, FW, FH } from '../src/lib/kedi-net.ts';
 import { META, B64, PARAMS } from '../src/lib/kedi-weights.ts';
+import { KEDI_SLEEP } from '../src/lib/i18n-kedi-sleepy.ts';
+import { KEDI_SLEEPY } from '../src/lib/kedi-sleepy-stats.ts';
 
 // ---- timeline
 {
@@ -70,4 +72,22 @@ import { META, B64, PARAMS } from '../src/lib/kedi-weights.ts';
 	assert.ok(!/feed\([^)]*captureNow|brain\.push\([^)]*captureNow/.test(app), 'captureNow previews are never fed to the model');
 	assert.ok(/drawPreview\(s3\.captureNow\(\)\)/.test(app) && !/function drawPreview[\s\S]{0,400}brain/.test(app), 'drawPreview only draws');
 	console.log('kedi cheat preview never feeds the model ok');
+}
+
+{
+	// sleepy cat: 5 languages, same line counts, only known placeholders; stats table complete; stride wired into the capture pump
+	const ref = KEDI_SLEEP.en, ok = new Set(['{pos}', '{p}', '{fps}', '{n}', '{s}', '{real}', '{ms}']);
+	for (const [l, d] of Object.entries(KEDI_SLEEP)) for (const k of ['seen', 'decide', 'won', 'lost'] as const) {
+		assert.equal(d[k].length, ref[k].length, `${l}.${k}`);
+		for (const line of d[k]) for (const m of line.match(/\{[a-z]+\}/g) ?? []) assert.ok(ok.has(m), `${l}.${k}: ${m}`);
+	}
+	assert.deepEqual(KEDI_SLEEPY.fps, [30, 15, 10, 5]);
+	for (const f of KEDI_SLEEPY.cells) { assert.equal(f.length, KEDI_SLEEPY.swaps.length); for (const r of f) { assert.equal(r.length, KEDI_SLEEPY.speeds.length); for (const [a, n] of r) assert.ok(n > 0 && a >= 0 && a <= n); } }
+	const tot = (i: number) => KEDI_SLEEPY.cells[i].flat().reduce((a, c) => a + c[0], 0);
+	assert.equal(tot(0), 900, 'awake cat stays 900/900');
+	const scene = readFileSync(new URL('../src/lib/kedi-scene.ts', import.meta.url), 'utf8');
+	assert.match(scene, /kk % stride\) continue/, 'pump skips non-stride ticks');
+	const app = readFileSync(new URL('../src/lib/KediApp.svelte', import.meta.url), 'utf8');
+	assert.match(app, /startCapture\(t0, 30 \/ roundFps\)/);
+	console.log(`kedi sleepy ok (awake ${tot(0)}, 15 fps ${tot(1)}, 10 fps ${tot(2)}, 5 fps ${tot(3)} / 900)`);
 }

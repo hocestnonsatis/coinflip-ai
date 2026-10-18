@@ -5,6 +5,8 @@
 	import { KEDI } from '#lib/i18n-kedi';
 	import { KEDI_CHEAT, type StickId } from '#lib/i18n-kedi-cheat';
 	import { KEDI_STICK } from '#lib/kedi-stick-stats';
+	import { KEDI_SLEEP } from '#lib/i18n-kedi-sleepy';
+	import { KEDI_SLEEPY } from '#lib/kedi-sleepy-stats';
 	import { HUB } from '#lib/i18n-hub';
 	import { SITE, REPO, pathFor, urlFor, setLangPref } from '#lib/site';
 	import { HIDE_D, MANUAL_D, SLOT_X, endOf, rng, shuffleEvents, swapDur, type Ev } from '#lib/kedi-anim';
@@ -24,6 +26,7 @@
 	let lang = $state<Lang>(initialLang);
 	const t = $derived(KEDI[lang]);
 	const c = $derived(KEDI_CHEAT[lang]);
+	const z = $derived(KEDI_SLEEP[lang]);
 	const pct = $derived(new Intl.NumberFormat(lang, { style: 'percent', maximumFractionDigits: 0 }));
 	const pct1 = $derived(new Intl.NumberFormat(lang, { style: 'percent', minimumFractionDigits: 1, maximumFractionDigits: 1 }));
 	const nf = $derived(new Intl.NumberFormat(lang));
@@ -39,16 +42,21 @@
 	let reduced = $state(false);
 	let chips = $state<{ x: number; y: number }[]>([]);
 	let headerEl = $state<HTMLElement>(), panelEl = $state<HTMLElement>();
-	let feedMode: 'normal' | 'blank' | 'mirror' = 'normal'; // test hook only (honesty checks on prod)
+	let feedMode: 'normal' | 'blank' | 'mirror' = 'normal', feedTainted = false; // test hook only (honesty checks on prod); a round that used it is never reported
 	let round = 0;
 	// ---- the cheat: toy pictures stuck on cups (by cup id; they stay on across rounds). Cheated rounds are not counted.
+	// ---- sleepy cat: the model only gets every (30/fps)-th camera tick; chosen fps applies from the next hide. Counted separately.
+	const FPS_OPTS = [30, 15, 10, 5];
+	let fpsSel = $state(30), roundFps = $state(30), zpos = $state<{ x: number; y: number } | null>(null);
+	function setFps(f: number) { fpsSel = f; s3?.setSleepy(FPS_OPTS.indexOf(f)); sfx.tick(); }
+	const special = () => cheated || roundFps < 30;
 	let cheatOn = $state(false), stick = $state([false, false, false]), slotStick = $state([false, false, false]), cheated = $state(false);
 	const canStick = $derived(phase === 'hide' || phase === 'shuffle' || phase === 'over');
 	function setStick(cup: number, on: boolean) {
 		if (!s3) return;
 		s3.setSticker(cup, on, phase === 'shuffle' ? s3.time() : 0); // before the hide (or for the next round) = already there when the toy is hidden
 		stick = s3.stickers().on; syncSlots();
-		if (on && phase === 'shuffle') { cheated = true; const r = round; s3.at(s3.time() + 0.7, () => { if (r === round && phase === 'shuffle' && !queued) say(fill(pick(c.stickOn))); }); }
+		if (on && phase === 'shuffle') { if (ticket && !ticket.special) openTicket(round, true); cheated = true; const r = round; s3.at(s3.time() + 0.7, () => { if (r === round && phase === 'shuffle' && !queued) say(fill(pick(c.stickOn))); }); }
 	}
 	function syncSlots() { if (!s3) return; const at = s3.pose().at, v = [0, 1, 2].map((k) => stick[at[k]]); if (v.some((x, k) => x !== slotStick[k])) slotStick = v; }
 	const stickSlot = (k: number) => { if (s3 && canStick) { const cup = s3.pose().at[k]; setStick(cup, !stick[cup]); sfx.tick(); } };
@@ -57,21 +65,21 @@
 	const stickClear = () => { [0, 1, 2].forEach((k) => setStick(k, false)); };
 
 	// ---- global all-time counter (/api/kedi/*), best-effort: hidden if the API is down
-	type Counts = { games: number; human: number; cat: number };
+	type Counts = { games: number; human: number; cat: number; special?: { games: number; human: number; cat: number } };
 	let gstats = $state<Counts | null>(null), counted = $state(false);
-	let ticket: { round: number; p: Promise<string | null> } | null = null;
+	let ticket: { round: number; special: boolean; p: Promise<string | null> } | null = null;
 	const isCounts = (v: unknown): v is Counts => !!v && typeof (v as Counts).games === 'number';
 	async function api(path: string, body?: unknown): Promise<{ ok: boolean; v: unknown }> {
 		try { const r = await fetch(`/api/kedi/${path}`, body === undefined ? {} : { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }); return { ok: r.ok, v: await r.json() }; }
 		catch { return { ok: false, v: null }; }
 	}
 	const loadStats = async () => { const { v } = await api('stats'); if (isCounts(v)) gstats = v; };
-	function openTicket(r: number) { counted = false; ticket = { round: r, p: api('start', {}).then(({ ok, v }) => (ok ? ((v as { gameId?: string }).gameId ?? null) : null)) }; }
+	function openTicket(r: number, sp = false) { counted = false; ticket = { round: r, special: sp, p: api('start', sp ? { special: true } : {}).then(({ ok, v }) => (ok ? ((v as { gameId?: string }).gameId ?? null) : null)) }; }
 	async function report(cat: boolean) {
-		const tk = ticket; ticket = null; if (!tk || tk.round !== round || cheated) return; // cheated rounds never reach the counter
+		const tk = ticket; ticket = null; if (!tk || tk.round !== round || tk.special !== special() || feedTainted) return; // cheat / sleepy rounds only reach the separate counter
 		const gid = await tk.p; if (!gid) return;
-		const { ok, v } = await api('result', { winner: cat ? 'model' : 'human', moves: swaps, gameId: gid });
-		if (ok && isCounts(v)) { gstats = v; counted = true; } else loadStats();
+		const { ok, v } = await api('result', { winner: cat ? 'model' : 'human', moves: swaps, gameId: gid, special: tk.special });
+		if (ok && isCounts(v)) { counted = true; } loadStats();
 	}
 	const leadLine = $derived(!gstats || !gstats.games ? t.statsEmpty : gstats.cat > gstats.human ? t.statsCat : gstats.human > gstats.cat ? t.statsHuman : t.statsTie);
 
@@ -90,7 +98,7 @@
 	const ranked = () => [0, 1, 2].sort((a, b) => probs[b] - probs[a]);
 	function fill(s: string, extra: Record<string, string> = {}) {
 		const [a, b] = ranked();
-		const v: Record<string, string> = { pos: posName(a), p: pct.format(probs[a]), q: posName(b), pq: pct.format(probs[b]), n: nf.format(nFrames), s: nf.format(swaps), ms: msPer.toLocaleString(lang, { maximumFractionDigits: 2 }), ...extra };
+		const v: Record<string, string> = { pos: posName(a), p: pct.format(probs[a]), q: posName(b), pq: pct.format(probs[b]), n: nf.format(nFrames), s: nf.format(swaps), ms: msPer.toLocaleString(lang, { maximumFractionDigits: 2 }), fps: nf.format(roundFps), ...extra };
 		return s.replace(/\{(\w+)\}/g, (_, k) => v[k] ?? '');
 	}
 	function track() { const top = Math.max(...probs); say(fill(pick(top >= 0.8 ? t.sure : top >= 0.5 ? t.unsure : t.lost))); }
@@ -141,10 +149,10 @@
 	function hideAt(slot: number) {
 		if (!s3 || !brain || phase !== 'hide') return;
 		const r = round, t0 = s3.time();
-		brain.reset(); s3.push({ k: 'hide', t: t0, d: HIDE_D, slot }); s3.startCapture(t0);
-		cheated = stick.some(Boolean); phase = 'hiding'; sfx.tilePick(); if (!cheated) openTicket(r);
+		roundFps = fpsSel; brain.reset(); s3.push({ k: 'hide', t: t0, d: HIDE_D, slot }); s3.startCapture(t0, 30 / roundFps);
+		feedTainted = feedMode !== 'normal'; cheated = stick.some(Boolean); phase = 'hiding'; sfx.tilePick(); openTicket(r, special());
 		s3.at(t0 + HIDE_D - 0.12, () => sfx.cup(0.45));
-		s3.at(t0 + HIDE_D + 0.05, async () => { await brain?.idle(); if (r !== round) return; phase = 'shuffle'; say(fill(pick(t.seen))); });
+		s3.at(t0 + HIDE_D + 0.05, async () => { await brain?.idle(); if (r !== round) return; phase = 'shuffle'; say(fill(pick(roundFps < 30 ? z.seen : t.seen))); });
 	}
 	function queueSwap(a: number, b: number, d: number) {
 		if (!s3) return;
@@ -190,7 +198,7 @@
 		s3.stopCapture(); await brain.idle(); if (r !== round) return;
 		s3.setMood('think');
 		const choice = ranked()[0], p = probs[choice];
-		await say(fill(pick(t.decide)));
+		await say(fill(pick(roundFps < 30 ? z.decide : t.decide)));
 		if (r !== round) return;
 		await s3.pawAt(choice); if (r !== round) return;
 		sfx.cup(0.3);
@@ -204,7 +212,7 @@
 		s3.setMood(cat ? 'happy' : 'sad'); sfx.meow(cat); if (!cat) setTimeout(() => sfx.win(), 380);
 		const lucky = p < 0.6, fast = swaps >= 6 && speed > 0.6;
 		const fooled = !cat && stick[pz.at[choice]];
-		say(fill(pick(cheated && cat ? c.cheatWon : fooled ? c.cheatFooled : cat ? (lucky ? t.wonLucky : t.won) : fast ? t.lostFast : t.lostR), { real: posName(real), p: pct.format(p), st: posName(choice), pos: posName(choice) }));
+		say(fill(pick(cheated && cat ? c.cheatWon : fooled ? c.cheatFooled : roundFps < 30 ? (cat ? z.won : z.lost) : cat ? (lucky ? t.wonLucky : t.won) : fast ? t.lostFast : t.lostR), { real: posName(real), p: pct.format(p), st: posName(choice), pos: posName(choice) }));
 		if (cat && Math.random() < 1 / 40) setTimeout(() => { if (r === round) { s3?.knock(pz.toyCup); setTimeout(() => sfx.hit(), 900); } }, 1400);
 		report(cat);
 	}
@@ -216,6 +224,9 @@
 		offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' }, author: { '@type': 'Person', name: 'Anıl ÖZ' }, sameAs: [REPO], image: `${SITE}/og-kedi.png`,
 		isPartOf: { '@type': 'WebSite', name: 'Tiny Models', url: `${SITE}/` }
 	});
+	// sleepy tables: cells[fps][swaps][speed] → pooled over swaps ≥ 1 (by speed) or over all speeds (by swaps)
+	const sleepyBySpeed = (i: number, j: number) => KEDI_SLEEPY.cells[i].reduce((a, row, k) => (KEDI_SLEEPY.swaps[k] > 0 ? [a[0] + row[j][0], a[1] + row[j][1]] : a), [0, 0]);
+	const sleepyBySwaps = (i: number, k: number) => KEDI_SLEEPY.cells[i][k].reduce((a, c2) => [a[0] + c2[0], a[1] + c2[1]], [0, 0]);
 	const cell = (c: number[]) => (c[1] ? pct.format(c[0] / c[1]) : '—');
 	// fastest speed column of the grid (real numbers for the "limits" line)
 	const fast = (() => { const j = KS.speeds.length - 1; if (j < 0) return { ms: 0, w: 0, n: 0 }; let w = 0, n = 0; for (const row of KS.cells) { w += row[j][0]; n += row[j][1]; } return { ms: KS.speeds[j].ms, w, n }; })();
@@ -243,12 +254,12 @@
 				brain = new ai.Brain();
 				const w = window as unknown as Record<string, unknown>;
 				w.__kedi = { s: s3, anim, m: mod }; // headless tests + data generator
-				w.__kediUi = () => ({ phase, probs: [...probs], nFrames, swaps, queued, result: result ? { ...result } : null, engine, sel, msPer, stick: [...stick], slotStick: [...slotStick], cheated, cheatOn });
-				w.__kediFeed = (m: typeof feedMode) => { feedMode = m; };
+				w.__kediUi = () => ({ phase, probs: [...probs], nFrames, swaps, queued, result: result ? { ...result } : null, engine, sel, msPer, stick: [...stick], slotStick: [...slotStick], cheated, cheatOn, fps: roundFps, fpsSel, special: special(), counted });
+				w.__kediFeed = (m: typeof feedMode) => { feedMode = m; if (m !== 'normal') feedTainted = true; };
 				const ro = new ResizeObserver(updateInsets); for (const el of [panelEl, headerEl]) if (el) ro.observe(el);
 				window.addEventListener('resize', updateInsets); updateInsets();
 				let pv = 0;
-				const loop = () => { raf = requestAnimationFrame(loop); if (!s3) return; chips = [0, 1, 2].map((k) => s3!.screenOfSlot(k, 0, 1.05)); syncSlots();
+				const loop = () => { raf = requestAnimationFrame(loop); if (!s3) return; chips = [0, 1, 2].map((k) => s3!.screenOfSlot(k, 0, 1.05)); syncSlots(); zpos = fpsSel < 30 ? s3.screenOfHead() : null;
 					if ((phase === 'hide' || phase === 'over') && ++pv % 6 === 0) drawPreview(s3.captureNow()); };
 				loop();
 				if (sp.has('datagen')) return;
@@ -284,6 +295,7 @@
 			{#each chips as c, k (k)}<span class="chip" class:top={ranked()[0] === k && nFrames > 0} style:left="{c.x}px" style:top="{c.y}px" style:--p={probs[k]}>{pct.format(probs[k])}</span>{/each}
 		{/if}
 	</div>
+	{#if zpos}<div class="zzz" aria-hidden="true" style:left="{zpos.x}px" style:top="{zpos.y}px" style:--lv={FPS_OPTS.indexOf(fpsSel)}><i>z</i><i>z</i><i>Z</i></div>{/if}
 	{#if !webglFailed}<div class="inset" class:cheat={cheatOn} aria-hidden="true"><canvas bind:this={insetEl} width="64" height="32"></canvas><small>🐱 {c.inset}{#if phase === 'hide' || phase === 'over'} · {c.preHide}{/if}</small></div>{/if}
 	<main>
 		<header bind:this={headerEl}>
@@ -322,6 +334,11 @@
 				{/if}
 				{#if cheated}<p class="cheated">🎭 {c.uncounted}</p>{/if}
 			</div>
+			<div class="sleepy" class:on={fpsSel < 30}>
+				<div class="row"><b>😴 {z.title}</b><span class="seg">{#each FPS_OPTS as f (f)}<button class:on={fpsSel === f} aria-pressed={fpsSel === f} onclick={() => setFps(f)}>{f === 30 ? z.awake : `${f}`}</button>{/each}</span></div>
+				{#if fpsSel < 30 || roundFps < 30}<p class="cn">{z.note}{#if fpsSel !== roundFps && phase !== 'hide' && phase !== 'over'} ({z.nextRound}){/if}</p>{/if}
+				{#if roundFps < 30 && phase !== 'hide'}<p class="cheated">{z.roundTag(roundFps)}</p>{/if}
+			</div>
 			<div class="belief">
 				<small>{t.belief}</small>
 				{#each [0, 1, 2] as k (k)}
@@ -337,6 +354,7 @@
 				<small>{t.statsTitle}</small>
 				<p>{t.statsLine(nf.format(gstats.games), gstats.games, nf.format(gstats.human), nf.format(gstats.cat))}</p>
 				<p class="lead">{leadLine}{#if counted} <span class="okc">✓ {t.counted}</span>{/if}</p>
+				{#if gstats.special && gstats.special.games}<p class="spc">🎭😴 {z.special(nf.format(gstats.special.games), nf.format(gstats.special.human), nf.format(gstats.special.cat))}</p>{/if}
 			</div>{/if}
 			<p class="engine mono">{t.engineLabel}: {engine === 'webgpu' ? 'ONNX Runtime · WebGPU' : engine === 'wasm' ? 'ONNX Runtime · WASM' : engine === 'loading' ? '…' : t.engineTs}</p>
 			<p class="hint">{t.hint}</p>
@@ -355,6 +373,20 @@
 					<p class="acc-t">🎭 {c.cardTitle}</p>
 					<ul class="stk">{#each KEDI_STICK as r (r.id)}<li><b>{c.cfg[r.id as StickId]}:</b> {c.line(nf.format(r.ok), nf.format(r.n), nf.format(r.fooled), pct.format(r.meanP))}</li>{/each}</ul>
 					<p class="acc-n">{c.cardNote}</p>
+				{/if}
+				{#if KEDI_SLEEPY.cells.length}
+					<p class="acc-t">😴 {z.cardTitle}</p>
+					<p class="acc-s">{z.bySpeed}</p>
+					<table class="acc mono">
+						<thead><tr><th>{z.fpsUnit}</th>{#each KEDI_SLEEPY.speeds as sp (sp.s)}<th>{t.speeds[Math.min(4, Math.floor(sp.s * 5))]}<br /><small>{sp.ms} ms</small></th>{/each}</tr></thead>
+						<tbody>{#each KEDI_SLEEPY.fps as f, i (f)}<tr><th>{f}</th>{#each KEDI_SLEEPY.speeds as _sp, j (j)}{@const cc = sleepyBySpeed(i, j)}<td style:--a={cc[0] / Math.max(1, cc[1])} title={`${cc[0]}/${cc[1]}`}>{cell(cc)}</td>{/each}</tr>{/each}</tbody>
+					</table>
+					<p class="acc-s">{z.bySwaps}</p>
+					<table class="acc mono">
+						<thead><tr><th>{z.fpsUnit}</th>{#each KEDI_SLEEPY.swaps as n (n)}<th>{n}</th>{/each}</tr></thead>
+						<tbody>{#each KEDI_SLEEPY.fps as f, i (f)}<tr><th>{f}</th>{#each KEDI_SLEEPY.swaps as _n, k (k)}{@const cc = sleepyBySwaps(i, k)}<td style:--a={cc[0] / Math.max(1, cc[1])} title={`${cc[0]}/${cc[1]}`}>{cell(cc)}</td>{/each}</tr>{/each}</tbody>
+					</table>
+					<p class="acc-n">{z.cardNote}</p>
 				{/if}
 			</details>
 		</aside>
@@ -403,6 +435,14 @@
 	.inset canvas { width: 192px; height: 96px; image-rendering: pixelated; border-radius: 8px; border: 1px solid #ffffff2a; background: #000; box-shadow: 0 8px 30px #0008; }
 	.inset small { font: 10px ui-monospace, monospace; opacity: 0.7; } .inset.cheat { opacity: 1; } .inset.cheat canvas { border-color: #ff8ad8aa; }
 	.stk { padding-left: 16px !important; font-size: 11px; }
+	.sleepy { margin-top: 8px; padding: 7px 8px; border-radius: 12px; background: #ffffff06; border: 1px dashed #ffffff1f; font-size: 12px; }
+	.sleepy.on { border-color: #8ab4ff88; background: #8ab4ff0d; } .sleepy .row { justify-content: space-between; flex-wrap: wrap; }
+	.seg { display: inline-flex; gap: 3px; } .seg button { padding: 4px 7px; font-size: 11px; border-radius: 8px; } .seg button.on { background: #8ab4ff; color: #0b1220; border-color: #8ab4ff; }
+	.spc { font-size: 11px; opacity: 0.75; } .acc-s { margin: 6px 0 2px; font-size: 11px; opacity: 0.8; }
+	.zzz { position: fixed; pointer-events: none; font: 800 22px system-ui, sans-serif; color: #cfe0ff; text-shadow: 0 2px 10px #0008; }
+	.zzz i { position: absolute; font-style: normal; opacity: 0; animation: zz 2.4s ease-out infinite; }
+	.zzz i:nth-child(2) { animation-delay: 0.8s; font-size: 28px; } .zzz i:nth-child(3) { animation-delay: 1.6s; font-size: 36px; }
+	@keyframes zz { 0% { transform: translate(0, 0) scale(0.6); opacity: 0; } 20% { opacity: 0.95; } 100% { transform: translate(34px, -60px) scale(1.1); opacity: 0; } }
 	.belief { margin-top: 10px; font-size: 12px; }
 	.belief > small { display: block; font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: #ffd36b; opacity: 0.85; margin-bottom: 4px; }
 	.bar { display: grid; grid-template-columns: 64px 1fr 40px; align-items: center; gap: 6px; margin: 3px 0; }
@@ -436,5 +476,5 @@
 		.inset canvas { width: 128px; height: 64px; } .inset { left: 10px; top: calc(max(10px, env(safe-area-inset-top)) + 52px); }
 	}
 	@keyframes blink { 50% { opacity: 0.1; } }
-	@media (prefers-reduced-motion: reduce) { .cursor { animation: none; } .track i { transition: none; } }
+	@media (prefers-reduced-motion: reduce) { .zzz i { animation: none; opacity: 0.8; } .zzz i:nth-child(2) { transform: translate(14px, -22px); } .zzz i:nth-child(3) { transform: translate(30px, -48px); } .cursor { animation: none; } .track i { transition: none; } }
 </style>

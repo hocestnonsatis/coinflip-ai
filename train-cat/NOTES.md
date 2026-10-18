@@ -92,3 +92,15 @@ swap events or cup positions). Same three.js scene for training data (headless C
 - UI: cheat card (checkbox; per-slot sticker buttons, all / empty ones (after the hide) / peel off) and a cat's-eye inset (the real 64×32 frames;
   a captureNow preview before the hide / after the round, drawn only). Cheated rounds open no ticket and report nothing. Streamed lines stickOn / cheatWon / cheatFooled use real numbers. Card section "Against cheating" ×5 langs.
 - Test: exactly one brain.push; captureNow previews never fed. Fixed the TR seen line (stray % before {p}).
+
+## S3 sleepy cat + separate counter (Oct 18, TRT)
+- Scene: capture pump keeps only ticks with (tick index since the hide) % stride == 0; startCapture(t0, 30/fps). Same renderer, same frames, just sparser (game time).
+  Visuals only (layer 1, not seen by the cat camera): setSleepy(0..3) → heavier lids, longer and more frequent blinks, a yawn every ~(11−2·level) s with an open mouth, slower gaze, head sway; "zzz" DOM overlay at screenOfHead().
+- `python3 train-cat/eval_sleepy.py` (shipped last.pt, not retrained) emulates the stride on the stored 30 fps data-grid frames (frame at tick j = last stored frame ≤ j, identical frames dropped again; content compare with np.array_equal).
+  900 held-out rounds per fps: **30 → 900/900 (154 frames/round), 15 → 764 (78), 10 → 638 (52), 5 → 426 (27)**. 0 swaps 20/20 everywhere. Pooled over 1–30 swaps (160 per speed, 752/526/367/257/164 ms):
+  15 fps 160/160/160/123/61, 10 fps 160/160/95/67/56, 5 fps 97/59/52/53/65. The rerun with the content compare gave the same numbers.
+- Stats: new ticket kind `kedix`, DO instance `kedi-x`. Rounds with stickers or fps < 30 open a kedix ticket (`/api/kedi/start {special:true}`) and report `special:true`; a sticker added mid-round swaps the normal ticket for a special one.
+  `/api/kedi/stats` → {games,human,cat, special:{…}}; reset accepts game=kedi-x. Rounds that used the `__kediFeed` test hook are never reported (feedTainted), so smoke tests no longer touch the honest counter.
+- Honest counter at deploy: 5 games after the last reset (real visitors), so it is NOT reset any more; only kedi-x (our smoke rounds) is reset.
+- Tests: kedix ↔ kedi tickets do not cross-verify; sleepy i18n (5 langs, placeholders), table completeness, stride wiring.
+- Deploy 9bcec229 (first), then 9eff25de (feedTainted). wrangler "fetch failed" ×3–4 again before success.

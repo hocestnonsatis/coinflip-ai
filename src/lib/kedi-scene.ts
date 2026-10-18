@@ -107,6 +107,7 @@ export function createKediScene(canvas: HTMLCanvasElement, opts: { onCup: (cup: 
 	const head = new THREE.Group(); head.position.set(0, 1.62, 0.12); cat.add(head);
 	mesh(new THREE.IcosahedronGeometry(0.66, 1), fur, [0, 0, 0], [1.12, 0.92, 0.95], head);
 	mesh(new THREE.IcosahedronGeometry(0.3, 1), cream, [0, -0.2, 0.5], [1.15, 0.7, 0.6], head); // muzzle
+	const mouth = mesh(new THREE.SphereGeometry(0.11, 14, 10), dark, [0, -0.33, 0.6], [1, 0.01, 0.5], head); mouth.visible = false; // yawns (sleepy mode)
 	mesh(new THREE.ConeGeometry(0.07, 0.07, 3), pink, [0, -0.08, 0.66], [1.3, 1, 1], head).rotation.x = Math.PI; // nose
 	const ears = [-1, 1].map((sx) => { const e = new THREE.Group(); e.position.set(sx * 0.4, 0.5, -0.02); e.rotation.z = -sx * 0.32; head.add(e); mesh(new THREE.ConeGeometry(0.24, 0.48, 4), fur, [0, 0.18, 0], [1, 1, 0.6], e); mesh(new THREE.ConeGeometry(0.14, 0.32, 4), pink, [0, 0.14, 0.06], [1, 1, 0.4], e); return e; });
 	const eyes = [-1, 1].map((sx) => { const e = new THREE.Group(); e.position.set(sx * 0.27, 0.06, 0.52); head.add(e); mesh(new THREE.SphereGeometry(0.15, 16, 12), eyeMat, [0, 0, 0], [1, 1.05, 0.6], e); const p = mesh(new THREE.SphereGeometry(0.075, 12, 10), dark, [0, 0, 0.08], [0.6, 1.25, 0.5], e); return { e, p }; });
@@ -135,7 +136,7 @@ export function createKediScene(canvas: HTMLCanvasElement, opts: { onCup: (cup: 
 	for (let i = 0; i < LUT.length; i++) { const l = i / (LUT.length - 1); LUT[i] = Math.round(255 * Math.pow(1 - Math.exp(-3.2 * l), 1 / 2.2) / Math.pow(1 - Math.exp(-3.2), 1 / 2.2)); }
 
 	// timeline / clock
-	let ev: Ev[] = [], time = 0, running = true, nextK = 0, capturing = false, capT0 = 0, lastFrame: Uint8Array | null = null;
+	let ev: Ev[] = [], time = 0, running = true, nextK = 0, stride = 1, capturing = false, capT0 = 0, lastFrame: Uint8Array | null = null;
 	let shown: Pose = pose(ev, 0);
 	let timers: { t: number; f: () => void }[] = [];
 	const knocked = new Map<number, { t0: number; dir: number }>();
@@ -167,7 +168,8 @@ export function createKediScene(canvas: HTMLCanvasElement, opts: { onCup: (cup: 
 	function pump() {
 		if (!capturing) return;
 		while (capT0 + nextK / FPS <= time) {
-			const tk = capT0 + nextK / FPS; nextK++;
+			const tk = capT0 + nextK / FPS, kk = nextK++;
+			if (kk % stride) continue; // sleepy cat: only every stride-th tick of the 30 Hz game-time clock (counted from the hide)
 			const f = captureAt(pose(ev, tk), tk);
 			if (lastFrame && same(f, lastFrame)) continue;
 			lastFrame = f; opts.onFrame?.(f, tk);
@@ -202,25 +204,31 @@ export function createKediScene(canvas: HTMLCanvasElement, opts: { onCup: (cup: 
 	const ro = new ResizeObserver(resize); ro.observe(canvas);
 
 	// cat animation state (main view only)
+	let sleepy = 0, yawnT = -99;
 	let mood: Mood = 'idle', moodT = 0, gaze = new THREE.Vector3(0, 0.4, 0), gazeTarget = new THREE.Vector3(0, 0.4, 0);
 	let paw: { slot: number; t0: number; done: () => void } | null = null;
 	const tmpQ = new THREE.Quaternion(), tmpM = new THREE.Matrix4(), UP = new THREE.Vector3(0, 1, 0), tmpV = new THREE.Vector3();
 	function animateCat(now: number, dt: number) {
 		const rm = opts.reducedMotion();
-		gaze.lerp(gazeTarget, 1 - Math.exp(-dt * 9));
+		gaze.lerp(gazeTarget, 1 - Math.exp(-dt * 9 / (1 + sleepy * 1.5)));
+		// sleepy: a yawn every few seconds (head back, mouth open), heavy lids, long slow blinks
+		if (sleepy && !rm && now - yawnT > 11 - sleepy * 2 && Math.random() < dt * 0.5) yawnT = now;
+		const yu = sleepy ? (now - yawnT) / 1.8 : 9, yawn = yu >= 0 && yu < 1 ? Math.sin(Math.PI * yu) : 0;
+		mouth.visible = yawn > 0.02; mouth.scale.set(1, 0.01 + yawn * 1.3, 0.5);
 		const hw = head.getWorldPosition(tmpV).clone();
 		tmpM.lookAt(gaze, hw, UP); tmpQ.setFromRotationMatrix(tmpM); // head faces the gaze point (+z toward it)
 		const parentQ = cat.quaternion.clone().invert(); tmpQ.premultiply(parentQ);
 		const base = new THREE.Quaternion().slerp(tmpQ, 0.75);
 		const mt = now - moodT, bounce = mood === 'happy' && !rm ? Math.abs(Math.sin(mt * 9)) * 0.12 * Math.max(0, 1 - mt / 2.5) : 0;
 		const tiltZ = mood === 'sad' ? 0.22 : mood === 'think' ? Math.sin(now * 1.3) * 0.08 : 0;
-		head.quaternion.copy(base).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(mood === 'sad' ? 0.25 : 0, 0, tiltZ)));
+		head.quaternion.copy(base).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler((mood === 'sad' ? 0.25 : 0) - yawn * 0.35 + sleepy * 0.05, 0, tiltZ + (sleepy && !rm ? Math.sin(now * 0.7) * 0.05 * sleepy : 0))));
 		head.position.y = 1.62 + bounce + (rm ? 0 : Math.sin(now * 2) * 0.012);
 		body.scale.y = 1.15 + (rm ? 0 : Math.sin(now * 2) * 0.012);
 		ears.forEach((e, i) => { const sx = i ? 1 : -1; e.rotation.z = -sx * (mood === 'sad' ? 0.95 : 0.32); e.rotation.x = mood === 'sad' ? -0.4 : mood === 'think' ? Math.sin(now * 3 + i) * 0.06 : 0; });
-		const blink = !rm && (now % 4.1) < 0.12;
+		const blink = !rm && (sleepy ? (now % (4.1 - sleepy * 0.6)) < 0.12 + sleepy * 0.25 : (now % 4.1) < 0.12);
+		const lid = sleepy ? Math.max(0.12, 0.75 - sleepy * 0.17 - yawn * 0.5) : 1;
 		eyes.forEach(({ e, p }) => {
-			e.scale.y = mood === 'happy' ? 0.25 : blink ? 0.1 : 1;
+			e.scale.y = mood === 'happy' ? 0.25 : blink ? 0.08 : lid;
 			const ew = e.getWorldPosition(new THREE.Vector3()), d = gaze.clone().sub(ew).normalize();
 			const local = d.applyQuaternion(e.getWorldQuaternion(new THREE.Quaternion()).invert());
 			p.position.set(local.x * 0.06, local.y * 0.05, 0.085);
@@ -287,7 +295,10 @@ export function createKediScene(canvas: HTMLCanvasElement, opts: { onCup: (cup: 
 		events: () => ev,
 		time: () => time,
 		/** Start sampling the cat camera at game time t0 (the moment the toy is hidden). */
-		startCapture(t0: number) { capturing = true; capT0 = t0; nextK = 0; lastFrame = null; },
+		startCapture(t0: number, every = 1) { capturing = true; capT0 = t0; nextK = 0; stride = Math.max(1, Math.round(every)); lastFrame = null; },
+		/** Sleepy look (main view only): 0 awake … 3 very sleepy — heavy eyelids, slow blinks, yawns, slower head. */
+		setSleepy(level: number) { sleepy = Math.max(0, Math.min(3, level)); },
+		screenOfHead() { return toScreen(head.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0.55, 0.95, 0))); },
 		stopCapture() { pump(); capturing = false; },
 		setRunning(r: boolean) { running = r; },
 		setInsets(i: typeof insets) { insets = i; fit(); },

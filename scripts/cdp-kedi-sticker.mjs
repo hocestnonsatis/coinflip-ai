@@ -1,5 +1,5 @@
 // Headless play-through of the /kedi sticker cheat with real UI clicks: stick toy pictures on cups (before / after the hide,
-// wrong / all / empty / right cup), play the round, record what the cat answers; cheated rounds must not reach the global counter;
+// wrong / all / empty / right cup), play the round, record what the cat answers; cheated rounds must not reach the honest counter (they go to the separate special one);
 // honesty checks (blank / mirrored feed) still pass with the stickers peeled off. Screenshots: <prefix>-*.png
 // node scripts/cdp-kedi-sticker.mjs <origin> [screensPrefix]
 import { launch, sleep } from './cdp-lib.mjs';
@@ -63,7 +63,9 @@ async function play1(b, name, { slot, before = [], after = null, n = 6, speed = 
 	await play(b, 'right-before', { slot: 1, before: [1], n: 10, speed: 0.7 });
 	await play(b, 'wrong-after-hand', { slot: 0, after: 1, n: 0, hand: 4 });
 	await play(b, 'empty-after-0swaps', { slot: 2, after: 'empty', n: 0 });
-	const s1 = await stats(b); out.counter = { before: s0, after: s1, unchanged: s0.games === s1.games && s0.human === s1.human && s0.cat === s1.cat };
+	await sleep(3000); const s1 = await stats(b); // cheated rounds: the honest counter must not move; they go to the separate special counter instead
+	out.counter = { before: s0, after: s1, honestUnchanged: s0.games === s1.games && s0.human === s1.human && s0.cat === s1.cat, specialDelta: s0.special && s1.special ? s1.special.games - s0.special.games : null };
+	out.counter.ok = out.counter.honestUnchanged && (out.counter.specialDelta === null || out.counter.specialDelta >= 1);
 	if (shots) { await b.ev('document.querySelector("details").open = true'); await sleep(200); await b.ev('document.querySelector(".stk").scrollIntoView({ block: "center" })'); await sleep(400); await b.shot(`${shots}-card.png`); await b.ev('document.querySelector("details").open = false'); }
 	// honesty checks with the stickers peeled off
 	await newRoundIfOver(b); await peel(b); await tap(b, '.ct input');
@@ -73,6 +75,7 @@ async function play1(b, name, { slot, before = [], after = null, n = 6, speed = 
 		const u = await finish(b, null); await b.ev('window.__kediFeed("normal")');
 		out.honesty.push({ feed, slot, probs: u.probs.map((p) => +p.toFixed(4)), choice: u.result.choice, cheated: u.cheated });
 	}
+	await sleep(3000); out.counter.honestAfterFeeds = await stats(b); out.counter.ok &&= out.counter.honestAfterFeeds.games === s0.games; // test-feed rounds never count
 	out.errors.push(...b.logs.filter((l) => l.type === 'error' || l.type === 'exception' || l.type === 'warning').map((l) => `desktop: ${l.text}`));
 	b.close();
 }
@@ -92,4 +95,4 @@ out.mirrorOk = out.honesty.filter((h) => h.feed === 'mirror').every((h) => h.cho
 out.cheatedFlagged = out.rounds.every((r) => r.cheated) && out.honesty.every((h) => !h.cheated);
 out.catAcc = `${out.rounds.filter((r) => r.cat).length}/${out.rounds.length}`;
 console.log(JSON.stringify(out, null, 1));
-if (out.errors.length || !out.blankOk || !out.mirrorOk || !out.cheatedFlagged || !out.counter?.unchanged) process.exitCode = 1;
+if (out.errors.length || !out.blankOk || !out.mirrorOk || !out.cheatedFlagged || !out.counter?.ok) process.exitCode = 1;

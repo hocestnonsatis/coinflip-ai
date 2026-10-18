@@ -20,9 +20,8 @@ def sub(e, k):
     for j in range(0, last + 1, k):
         while i + 1 < len(ticks) and ticks[i + 1] <= j: i += 1
         if ticks[i] > j: continue
-        if prev is not None and prev == i: continue  # same stored frame = identical image → dropped
+        if prev is not None and (prev == i or np.array_equal(fr[i], fr[prev])): continue  # identical image → dropped, as in the browser
         keep.append(i); prev = i
-    if keep[-1] != len(ticks) - 1 and (last % k): pass  # the browser stops at the last tick ≤ end that is a multiple of k
     return fr[keep]
 SW = sorted({e['swaps'] for e in eps}); SP = sorted({round(e['speed'], 3) for e in eps})
 res = {f: [[[0, 0] for _ in SP] for _ in SW] for f in FPS}; nfr = {f: [] for f in FPS}

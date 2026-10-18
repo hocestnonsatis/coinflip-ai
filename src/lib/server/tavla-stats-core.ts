@@ -2,7 +2,7 @@
 // No platform imports, so the same code runs in the Worker and in `node tests/tavla-stats.test.ts`.
 
 export type Winner = 'human' | 'model' | 'draw';
-export type Kind = 'tavla' | 'okey' | 'kedi';
+export type Kind = 'tavla' | 'okey' | 'kedi' | 'kedix'; // kedix = cheat / sleepy cups rounds (own ticket kind, own counter)
 export interface ResultBody { winner: Winner; gammon: boolean; moves: number; gameId: string }
 export interface Counts { games: number; human: number; model: number; humanGammons: number; modelGammons: number; draw?: number }
 
