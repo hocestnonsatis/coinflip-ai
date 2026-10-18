@@ -189,7 +189,7 @@
 		offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' }, author: { '@type': 'Person', name: 'Anıl ÖZ' }, sameAs: [REPO], image: `${SITE}/og-kedi.png`,
 		isPartOf: { '@type': 'WebSite', name: 'Tiny Models', url: `${SITE}/` }
 	});
-	const cell = (c: [number, number]) => (c[1] ? pct.format(c[0] / c[1]) : '—');
+	const cell = (c: number[]) => (c[1] ? pct.format(c[0] / c[1]) : '—');
 	const card = $derived(t.card({
 		params: nf.format(PARAMS), episodes: nf.format(KS.episodes), frames: nf.format(KS.frames),
 		train: `PyTorch (CPU), ${KS.epochs} epochs ≈ ${KS.minutes} min × ${KS.procs} CPU; dense per‑frame cross‑entropy`,

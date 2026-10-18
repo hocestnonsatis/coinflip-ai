@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 
 type Rec = { kind: string; t?: number; stop?: number; peak?: number; f?: number };
 const made: Rec[] = [];
-class Param { value = 0; target: number | null = null; r?: Rec; constructor(r?: Rec) { this.r = r; }
+class Param { value = 0; target: number | null = null; r?: Rec; g: boolean; constructor(r?: Rec, g = false) { this.r = r; this.g = g; } // g: a gain param (only those count as loudness)
 	setValueAtTime(v: number, t: number) { this.value = v; if (this.r && this.r.f === undefined) this.r.f = v; if (this.r) this.r.t = t; }
-	linearRampToValueAtTime(v: number) { if (this.r) this.r.peak = Math.max(this.r.peak ?? 0, v); }
+	linearRampToValueAtTime(v: number) { if (this.r && this.g) this.r.peak = Math.max(this.r.peak ?? 0, v); }
 	exponentialRampToValueAtTime() {} setTargetAtTime(v: number) { this.target = v; } }
 class Node { connect(n: unknown) { return n; } }
-class Gain extends Node { r: Rec = { kind: 'gain' }; gain = new Param(this.r); constructor() { super(); made.push(this.r); } }
+class Gain extends Node { r: Rec = { kind: 'gain' }; gain = new Param(this.r, true); constructor() { super(); made.push(this.r); } }
 class Osc extends Node { r: Rec = { kind: 'osc' }; type = 'sine'; frequency = new Param(this.r); constructor() { super(); made.push(this.r); } start(t: number) { this.r.t = t; } stop(t: number) { this.r.stop = t; } }
 class Src extends Node { r: Rec = { kind: 'noise' }; buffer: unknown = null; loop = false; constructor() { super(); made.push(this.r); } start(t: number) { this.r.t = t; } stop(t: number) { this.r.stop = t; } }
 class Filt extends Node { type = 'bandpass'; Q = new Param(); frequency = new Param(); }
