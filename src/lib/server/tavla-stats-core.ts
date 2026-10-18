@@ -2,7 +2,7 @@
 // No platform imports, so the same code runs in the Worker and in `node tests/tavla-stats.test.ts`.
 
 export type Winner = 'human' | 'model' | 'draw';
-export type Kind = 'tavla' | 'okey';
+export type Kind = 'tavla' | 'okey' | 'kedi';
 export interface ResultBody { winner: Winner; gammon: boolean; moves: number; gameId: string }
 export interface Counts { games: number; human: number; model: number; humanGammons: number; modelGammons: number; draw?: number }
 
@@ -17,6 +17,8 @@ export const RULES: Rules = { draw: false,
 /** Okey: moves = total discards by all 4 seats. A win needs the winner's own turn after the deal, so ≥ 4 discards except for a
  * (practically impossible) dealt winning hand; games can also end with the pile exhausted ('draw'). */
 export const RULES_OKEY: Rules = { minMs: 20_000, maxMs: 24 * 3600_000, minMoves: 4, maxMoves: 400, draw: true };
+/** Kedi (cups): one round = hide → shuffles → the cat guesses; moves = swaps (0 allowed). Hide + paw + reveal take ≥ 4 s. */
+export const RULES_KEDI: Rules = { minMs: 4_000, maxMs: 24 * 3600_000, minMoves: 0, maxMoves: 5000, draw: false };
 const msg = (kind: Kind, body: string) => (kind === 'tavla' ? body : `${kind}|${body}`); // tavla tickets keep their original format
 
 const enc = new TextEncoder();
@@ -56,7 +58,7 @@ export async function checkResult(secret: string, body: unknown, now = Date.now(
 	const b = body as Partial<ResultBody> | null;
 	if (!b || typeof b !== 'object') return { ok: false, status: 400, error: 'bad body' };
 	if (b.winner !== 'human' && b.winner !== 'model' && !(rules.draw && b.winner === 'draw')) return { ok: false, status: 400, error: 'bad winner' };
-	if (kind === 'okey' && b.gammon === undefined) b.gammon = false;
+	if (kind !== 'tavla' && b.gammon === undefined) b.gammon = false;
 	if (typeof b.gammon !== 'boolean') return { ok: false, status: 400, error: 'bad gammon' };
 	if (typeof b.moves !== 'number' || !Number.isInteger(b.moves)) return { ok: false, status: 400, error: 'bad moves' };
 	const t = await verifyTicket(secret, b.gameId, kind);
@@ -73,3 +75,4 @@ export async function ipKey(secret: string, ip: string): Promise<string> { retur
 
 export const LIMITS = { windowMs: 3600_000, start: 60, result: 30 };
 export const LIMITS_OKEY = { windowMs: 3600_000, start: 40, result: 30 };
+export const LIMITS_KEDI = { windowMs: 3600_000, start: 150, result: 120 }; // rounds are short

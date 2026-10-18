@@ -12,7 +12,7 @@ const LOOK = 0.03;
 /** per-sound output level in dB (tuned with scripts/cdp-sound-render.mjs: main hits peak ≈ -10..-6 dBFS) */
 export const LEVEL: Record<string, number> = {
 	tick: 6, nope: 4, win: 5, lose: 5, draw: 5, coinFlip: 9, spinTick: 6, coinLand: 5, coinOdd: 6, sparkle: 6,
-	rattle: 3, diceLand: 3, checker: 2, hit: 6, bearOff: 6, tilePick: 5, tileDrop: 6, slide: 8, shuffle: 6
+	rattle: 3, diceLand: 3, checker: 2, hit: 6, bearOff: 6, tilePick: 5, tileDrop: 6, slide: 8, shuffle: 6, meow: 3, cup: 5
 };
 let trim = 1;
 
@@ -150,6 +150,21 @@ function notes(c: Ctx, fs: number[], step: number, o: Partial<Tone> & { gain: nu
 }
 const N = (semi: number) => 440 * 2 ** ((semi - 9) / 12) * 2; // semitones from C5
 
+/** a small synthesized meow: sawtooth voice through two moving formants ("mi‑aa‑ow") */
+function meowV(c: Ctx, o: { f0: number; up: number; down: number; d: number; gain: number; at?: number }) {
+	const t = c.currentTime + LOOK + (o.at ?? 0), osc = c.createOscillator(), g = c.createGain();
+	osc.type = 'sawtooth'; osc.frequency.setValueAtTime(o.f0, t);
+	osc.frequency.linearRampToValueAtTime(o.f0 * o.up, t + o.d * 0.35); osc.frequency.exponentialRampToValueAtTime(o.f0 * o.down, t + o.d);
+	g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(o.gain * trim, t + 0.06); g.gain.setValueAtTime(o.gain * trim, t + o.d * 0.6); g.gain.exponentialRampToValueAtTime(0.0001, t + o.d);
+	g.connect(master!);
+	for (const [f1, f2, f3, q, k] of [[750, 1500, 800, 4, 1], [2300, 3000, 2000, 6, 0.45]]) {
+		const bq = c.createBiquadFilter(), kg = c.createGain(); bq.type = 'bandpass'; bq.Q.value = q;
+		bq.frequency.setValueAtTime(f1, t); bq.frequency.linearRampToValueAtTime(f2, t + o.d * 0.4); bq.frequency.linearRampToValueAtTime(f3, t + o.d);
+		kg.gain.value = k; osc.connect(bq); bq.connect(kg); kg.connect(g);
+	}
+	osc.start(t); osc.stop(t + o.d + 0.05);
+}
+
 // ---------- the sound kit
 export const sfx = {
 	// ui
@@ -192,6 +207,10 @@ export const sfx = {
 	tilePick() { play('tilePick', (c) => clack(c, 1.55, 0.45)); },
 	tileDrop(gain = 0.45) { play('tileDrop', (c) => { clack(c, 1.4, gain); clack(c, 1.6, gain * 0.35, 0.045); }); },
 	slide() { play('slide', (c) => { burst(c, { f: vary(1400, 0.1), f2: 900, q: 1.2, gain: 0.08, a: 0.02, d: 0.12 }); clack(c, 1.7, 0.12, 0.13); }); },
+	// kedi (cups)
+	meow(happy = true) { play('meow', (c) => (happy ? meowV(c, { f0: vary(560, 0.05), up: 1.35, down: 0.8, d: 0.5, gain: 0.5 }) : meowV(c, { f0: vary(520, 0.05), up: 1.04, down: 0.6, d: 0.7, gain: 0.42 }))); },
+	/** a ceramic cup set down on felt (soft) */
+	cup(gain = 0.4) { play('cup', (c) => { thud(c, gain * 0.5); clack(c, 1.2, gain * 0.5, 0.005); }); },
 	shuffle(ms = 500) { play('shuffle', (c) => { for (let i = 0; i < 7; i++) burst(c, { f: rnd(1100, 1700), q: 1.3, gain: 0.05, a: 0.01, d: 0.06, at: (i / 7) * (ms / 1000) }); for (let i = 0; i < 5; i++) clack(c, rnd(1.4, 1.8), rnd(0.08, 0.16), rnd(0.05, ms / 1000)); }); },
 };
 export type Sfx = typeof sfx;

@@ -57,7 +57,7 @@ assert.equal(TAVLA_STATS.tr.line('12.345', 12345, '6.000', '6.345'), 'Bugüne ka
 console.log('tavla stats ok');
 
 // okey tickets: separate HMAC domain, draw allowed, own plausibility rules
-import { RULES_OKEY } from '../src/lib/server/tavla-stats-core.ts';
+import { RULES_OKEY, RULES_KEDI } from '../src/lib/server/tavla-stats-core.ts';
 {
 	const ok = await issueTicket(S, now, 'okey');
 	assert.equal(await verifyTicket(S, ok.gameId, 'tavla'), null, 'okey ticket is not a tavla ticket');
@@ -69,4 +69,17 @@ import { RULES_OKEY } from '../src/lib/server/tavla-stats-core.ts';
 	const c = await checkResult(S, body, now + RULES_OKEY.minMs - 1, 'okey', RULES_OKEY); assert.ok(!c.ok && c.status === 422);
 	const c2 = await checkResult(S, { ...body, moves: 3 }, later2, 'okey', RULES_OKEY); assert.ok(!c2.ok && c2.status === 422);
 	console.log('okey stats tickets ok');
+	// kedi (cups) tickets: own HMAC domain, 0 swaps allowed, no draws, ≥ 4 s
+	{
+		const k = await issueTicket(S, now, 'kedi');
+		assert.equal(await verifyTicket(S, k.gameId, 'okey'), null, 'kedi ticket is not an okey ticket');
+		assert.equal(await verifyTicket(S, ok.gameId, 'kedi'), null, 'okey ticket is not a kedi ticket');
+		const kb = { winner: 'model', moves: 0, gameId: k.gameId };
+		assert.ok((await checkResult(S, kb, now + RULES_KEDI.minMs, 'kedi', RULES_KEDI)).ok, 'cat win with 0 swaps');
+		assert.ok((await checkResult(S, { ...kb, winner: 'human', moves: 37 }, now + 60_000, 'kedi', RULES_KEDI)).ok);
+		const d = await checkResult(S, { ...kb, winner: 'draw' }, now + 60_000, 'kedi', RULES_KEDI); assert.ok(!d.ok && d.status === 400, 'no draws');
+		const f = await checkResult(S, kb, now + RULES_KEDI.minMs - 1, 'kedi', RULES_KEDI); assert.ok(!f.ok && f.status === 422, 'too fast');
+		const m = await checkResult(S, { ...kb, moves: -1 }, now + 60_000, 'kedi', RULES_KEDI); assert.ok(!m.ok && m.status === 422);
+		console.log('kedi stats tickets ok');
+	}
 }

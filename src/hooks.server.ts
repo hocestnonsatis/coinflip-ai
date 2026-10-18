@@ -18,9 +18,9 @@ function preferred(cookie: string | null, acceptLanguage: string | null): string
 
 export const handle: Handle = async ({ event, resolve }) => {
 	const { pathname } = event.url;
-	// English URLs ("/", "/coin", "/dice", "/tavla", "/okey") for non-English visitors → their language URL, so URL, canonical, hreflang and <html lang> always agree.
+	// English URLs ("/", "/coin", "/dice", "/tavla", "/okey", "/kedi") for non-English visitors → their language URL, so URL, canonical, hreflang and <html lang> always agree.
 	// Crawlers (no Accept-Language) and English visitors get the English page.
-	if ((pathname === '/' || pathname === '/coin' || pathname === '/dice' || pathname === '/tavla' || pathname === '/okey') && !event.isDataRequest && !event.url.searchParams.has('lang')) {
+	if ((pathname === '/' || pathname === '/coin' || pathname === '/dice' || pathname === '/tavla' || pathname === '/okey' || pathname === '/kedi') && !event.isDataRequest && !event.url.searchParams.has('lang')) {
 		const l = preferred(event.request.headers.get('cookie'), event.request.headers.get('accept-language'));
 		if (l) { event.setHeaders({ vary: 'Accept-Language, Cookie', 'cache-control': 'private, no-store' }); redirect(302, `/${l}${pathname === '/' ? '' : pathname}`); }
 		event.setHeaders({ vary: 'Accept-Language, Cookie' });

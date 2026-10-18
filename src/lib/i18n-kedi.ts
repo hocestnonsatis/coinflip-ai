@@ -1,0 +1,135 @@
+import type { Lang } from './i18n';
+// Kedi (cups) strings. Comment placeholders: {pos} the cup (by position, as the human sees it), {p} the cat's confidence in it,
+// {q}/{pq} second choice and its confidence, {n} frames the cat has seen this round, {s} swaps, {ms} model time per frame,
+// {real} where the toy really was.
+export type KediCard = { params: string; episodes: string; frames: string; train: string; overall: string; random: string; size: string; blank: string };
+export type KediDict = {
+	title: string; desc: string; pitch: string; pos: [string, string, string]; cupOf: (pos: string) => string;
+	hide: string; hiding: string; shuffle: (s: number) => string; ask: string; asking: string; queued: (n: number) => string; catWin: string; humanWin: string; newRound: string;
+	shuffleN: (n: number) => string; speed: string; speeds: [string, string, string, string, string]; times: string; belief: string; frames: (n: number) => string; perFrame: (ms: string) => string;
+	swapsDone: (s: number) => string; hint: string; engineLabel: string; engineTs: string; noWebgl: string; cardTitle: string; card: (s: KediCard) => [string, string][];
+	accTitle: string; accSwaps: string; accNote: string;
+	seen: string[]; sure: string[]; unsure: string[]; lost: string[]; decide: string[]; won: string[]; wonLucky: string[]; lostR: string[]; lostFast: string[]; still: string[];
+	statsTitle: string; statsLine: (n: string, c: number, humans: string, cats: string) => string; statsCat: string; statsHuman: string; statsTie: string; statsEmpty: string; counted: string;
+};
+const tr: KediDict = {
+	title: 'Kedi · bardak oyunu: oyuncağı sakla, karıştır, kedi bulsun', desc: 'Üç bardaktan birinin altına oyuncak sakla, istediğin kadar karıştır; küçük bir sinir ağı kedi, sadece kendi kamerasından gördüğü piksellere bakarak hangi bardakta olduğunu tahmin etsin. Tarayıcıda çalışır, ücretsiz.',
+	pitch: '27 bin parametre · sadece piksellerden tahmin · tarayıcıda', pos: ['soldaki', 'ortadaki', 'sağdaki'], cupOf: (p) => `${p} bardak`,
+	hide: 'Oyuncağı saklamak için bir bardağa tıkla', hiding: 'Kedi izliyor…', shuffle: (s) => (s ? `${s} değişim · istediğin kadar karıştır` : 'Karıştır: iki bardağa tıkla ya da birini ötekine sürükle'), ask: 'Kedi, nerede?', asking: 'Kedi düşünüyor…', queued: (n) => `${n} değişim sırada`,
+	catWin: 'Kedi buldu! 🐾', humanWin: 'Kedi yanıldı! 🎉', newRound: 'Yeni tur', shuffleN: (n) => `Rastgele karıştır ×${n}`, speed: 'Hız', speeds: ['yavaş', 'orta', 'hızlı', 'çok hızlı', 'şimşek'], times: 'kez',
+	belief: 'Kedinin tahmini', frames: (n) => `${n} kare`, perFrame: (ms) => `${ms} ms/kare`, swapsDone: (s) => `${s} değişim`,
+	hint: 'Tıkla: sakla · iki bardağa sırayla tıkla ya da sürükle: yer değiştir · M: ses', engineLabel: 'Motor', engineTs: 'TypeScript', noWebgl: 'Bu oyun WebGL ister: kedi sahneyi kendi kamerasından görüyor. Tarayıcında WebGL açık değil gibi.',
+	cardTitle: 'Model kartı', card: (s) => [
+		['Mimari', 'CNN (kare + önceki kareyle farkı; 3 evrişim katmanı) → 32 özellik → GRU (32 gizli durum) → her bardak konumu için olasılık'], ['Parametre', s.params],
+		['Girdi', 'Sadece pikseller: masanın üstündeki sabit “kedi kamerası”ndan 64×32 gri tonlu kare, oyun zamanında saniyede 30 kare (bir öncekinin aynısı olan kareler atlanır). Oyun durumu, değişim olayları ya da bardak konumları modele hiç verilmez. Hafızası, oyuncağı sakladığın an sıfırlanır (kedi o an izlemeye başlar).'],
+		['Eğitim verisi', `${s.episodes} rastgele tur, ${s.frames} kare; aynı three.js sahnesi ve aynı kedi kamerasıyla headless Chrome’da render edildi. Hız, değişim sayısı ve ışık rastgele.`], ['Eğitim', s.train],
+		['Doğruluk (ayrı test turları)', `${s.overall} · rastgele tahmin: ${s.random}`], ['Dürüstlük testi', s.blank], ['Boyut', s.size],
+		['Kısıtlar', 'Çok hızlı karıştırınca şaşırıyor; bu gerçek, aşağıdaki tabloda görebilirsin. Sadece bu sahnede, bu kamerayla çalışır. Ağırlıkları ileride Hugging Face’te yayımlayabilirim.']],
+	accTitle: 'Doğruluk: değişim sayısı × hız (son karedeki tahmin)', accSwaps: 'değişim', accNote: 'Her hücre ayrı tutulan test turları; parantezde tur sayısı. Rastgele tahmin %33,3.',
+	seen: ['Gördüm! {pos}. {n} karedir izliyorum, %{p} eminim.', 'Tamam, oyuncak {pos} altında. Gözüm üstünde ({p}).', 'Not aldım: {pos}. Şimdi karıştır bakalım.'],
+	sure: ['{n} kare izledim. Hâlâ {pos} diyorum: {p}.', 'Kolaydı. {pos}, {p} güvenle.', '{s} değişim oldu, takipteyim: {pos} ({p}).'],
+	unsure: ['Hmm. {pos} sanırım ({p}), ama {q} da olabilir ({pq}).', '{n} kare… {pos} ile {q} arasında kaldım: {p} / {pq}.', 'Gözüm biraz karıştı. En iyi tahminim {pos}, {p}.'],
+	lost: ['Kaybettim galiba. {pos} {p}, {q} {pq}… yazı tura gibi.', 'Çok hızlıydı! Kafamda üç bardak da aynı: en yüksek {p}.', 'Patilerimle yemin ederim izliyordum. Şu an {p} ile {pos}.'],
+	decide: ['Karar: {pos}. Güven {p} · {n} kare · {ms} ms/kare.', 'Patimi {pos} üstüne koyuyorum. {p} eminim ({n} kare gördüm).'],
+	won: ['Buldum! {p} emindim zaten. 🐾', 'Miyav! {s} değişim beni durduramaz.', 'Gözlerim pikselde, oyuncak bende.'], wonLucky: ['Buldum… ama itiraf: sadece {p} emindim. Şans da yetenektir.', 'Tuttu! Açıkçası tahmin ettim ({p}).'],
+	lostR: ['Olamaz, {real} imiş! {p} ile yanılmışım.', 'Hmph. Oyuncak {real} altındaymış. Bir dahakine.', 'Yanıldım. {n} karede bir yerde kaybettim.'], lostFast: ['Çok hızlıydın! {s} değişimden sonra {p} ile tahmin ettim, olmadı.', 'Gözlerim yetişmedi. Bu hızda kediler de yanılır.'],
+	still: ['Bekliyorum. Kare değişmeyince ben de düşünmüyorum.', 'Hadi karıştır, sıkıldım.'],
+	statsTitle: 'Tüm zamanlar', statsLine: (n, _c, h, k) => `${n} tur oynandı · İnsanlar ${h} · Kedi ${k}`, statsCat: 'Kedi önde. Piksellerden ne kaçar ki?', statsHuman: 'İnsanlar önde. Kedi daha hızlı göz kırpmayı öğreniyor.', statsTie: 'Berabere. Kedi kuyruğunu sallıyor.', statsEmpty: 'Henüz biten tur yok. İlk sonuç senin olabilir.', counted: 'Bu tur sayıldı.'
+};
+const en: KediDict = {
+	title: 'Kedi · the cup game: hide the toy, shuffle, let the cat find it', desc: 'Hide a toy under one of three cups and shuffle as much as you like; a tiny neural‑network cat guesses where it is from nothing but the pixels its own camera sees. Runs in your browser, free.',
+	pitch: '27K parameters · predicts from pixels only · in your browser', pos: ['left', 'middle', 'right'], cupOf: (p) => `the ${p} cup`,
+	hide: 'Click a cup to hide the toy under it', hiding: 'The cat is watching…', shuffle: (s) => (s ? `${s} swaps · shuffle as much as you like` : 'Shuffle: click two cups, or drag one onto another'), ask: 'Cat, where is it?', asking: 'The cat is thinking…', queued: (n) => `${n} swaps queued`,
+	catWin: 'The cat found it! 🐾', humanWin: 'The cat got it wrong! 🎉', newRound: 'New round', shuffleN: (n) => `Random shuffle ×${n}`, speed: 'Speed', speeds: ['slow', 'medium', 'fast', 'very fast', 'lightning'], times: 'times',
+	belief: 'What the cat thinks', frames: (n) => `${n} frames`, perFrame: (ms) => `${ms} ms/frame`, swapsDone: (s) => `${s} swaps`,
+	hint: 'Click: hide · click two cups in turn or drag: swap · M: sound', engineLabel: 'Engine', engineTs: 'TypeScript', noWebgl: 'This game needs WebGL: the cat sees the scene through its own camera, and WebGL seems to be off in this browser.',
+	cardTitle: 'Model card', card: (s) => [
+		['Architecture', 'CNN (frame + difference to the previous frame; 3 conv layers) → 32 features → GRU (32 hidden) → probability per cup position'], ['Parameters', s.params],
+		['Input', 'Pixels only: a 64×32 grayscale frame from a fixed “cat camera” above the table, 30 frames per second of game time (frames identical to the previous one are skipped). Game state, swap events and cup positions are never given to the model. Its memory is reset when you hide the toy (that’s when the cat starts watching).'],
+		['Training data', `${s.episodes} random rounds, ${s.frames} frames, rendered in headless Chrome by the same three.js scene and the same cat camera. Speeds, swap counts and lighting randomised.`], ['Training', s.train],
+		['Accuracy (held‑out rounds)', `${s.overall} · random guessing: ${s.random}`], ['Honesty check', s.blank], ['Size', s.size],
+		['Limitations', 'Very fast shuffles confuse it; that’s real, see the table below. It only works in this scene with this camera. I may publish the weights on Hugging Face later.']],
+	accTitle: 'Accuracy: swaps × speed (prediction at the last frame)', accSwaps: 'swaps', accNote: 'Every cell is held‑out test rounds; round count in brackets. Random guessing is 33.3%.',
+	seen: ['Got it! {pos}. Watching for {n} frames, {p} sure.', 'OK, the toy is under {pos}. My eyes are on it ({p}).', 'Noted: {pos}. Go ahead, shuffle.'],
+	sure: ['{n} frames in. Still {pos}: {p}.', 'Easy. {pos}, {p} confident.', '{s} swaps so far, still tracking: {pos} ({p}).'],
+	unsure: ['Hmm. {pos}, I think ({p}), but maybe {q} ({pq}).', '{n} frames… torn between {pos} and {q}: {p} / {pq}.', 'That got a bit blurry. Best guess {pos}, {p}.'],
+	lost: ['I think I lost it. {pos} {p}, {q} {pq}… basically a coin flip.', 'Too fast! All three cups look the same to me now: top {p}.', 'I swear on my paws I was watching. Right now {pos} at {p}.'],
+	decide: ['Decision: {pos}. Confidence {p} · {n} frames · {ms} ms/frame.', 'Paw goes on {pos}. {p} sure ({n} frames seen).'],
+	won: ['Found it! I was {p} sure anyway. 🐾', 'Meow! {s} swaps can’t stop me.', 'Eyes on the pixels, toy in the paw.'], wonLucky: ['Found it… but honestly I was only {p} sure. Luck is a skill too.', 'Got it! To be fair, that was a guess ({p}).'],
+	lostR: ['No way, it was {real}! I was {p} sure and wrong.', 'Hmph. The toy was under {real}. Next time.', 'Wrong. I lost it somewhere in those {n} frames.'], lostFast: ['You were too fast! After {s} swaps I guessed at {p}, no luck.', 'My eyes couldn’t keep up. At that speed even cats miss.'],
+	still: ['Waiting. If the frame doesn’t change, neither do my thoughts.', 'Come on, shuffle, I’m bored.'],
+	statsTitle: 'All‑time', statsLine: (n, c, h, k) => `${n} ${c === 1 ? 'round' : 'rounds'} played · Humans ${h} · Cat ${k}`, statsCat: 'The cat leads. Pixels don’t lie.', statsHuman: 'Humans lead. The cat is practising blinking faster.', statsTie: 'Dead even. The cat is swishing its tail.', statsEmpty: 'No finished rounds yet. The first result could be yours.', counted: 'Your round was counted.'
+};
+const de: KediDict = {
+	title: 'Kedi · Hütchenspiel: Spielzeug verstecken, mischen, die Katze sucht', desc: 'Versteck ein Spielzeug unter einem von drei Bechern und misch so viel du willst; eine winzige neuronale Katze rät, wo es ist, allein aus den Pixeln ihrer eigenen Kamera. Läuft im Browser, kostenlos.',
+	pitch: '27K Parameter · rät nur aus Pixeln · im Browser', pos: ['links', 'Mitte', 'rechts'], cupOf: (p) => `Becher ${p}`,
+	hide: 'Klick auf einen Becher, um das Spielzeug zu verstecken', hiding: 'Die Katze schaut zu…', shuffle: (s) => (s ? `${s} Tausche · misch so viel du willst` : 'Mischen: zwei Becher anklicken oder einen auf den anderen ziehen'), ask: 'Katze, wo ist es?', asking: 'Die Katze denkt nach…', queued: (n) => `${n} Tausche in der Warteschlange`,
+	catWin: 'Die Katze hat es gefunden! 🐾', humanWin: 'Die Katze lag falsch! 🎉', newRound: 'Neue Runde', shuffleN: (n) => `Zufällig mischen ×${n}`, speed: 'Tempo', speeds: ['langsam', 'mittel', 'schnell', 'sehr schnell', 'Blitz'], times: 'mal',
+	belief: 'Was die Katze glaubt', frames: (n) => `${n} Bilder`, perFrame: (ms) => `${ms} ms/Bild`, swapsDone: (s) => `${s} Tausche`,
+	hint: 'Klick: verstecken · zwei Becher nacheinander anklicken oder ziehen: tauschen · M: Ton', engineLabel: 'Engine', engineTs: 'TypeScript', noWebgl: 'Dieses Spiel braucht WebGL: Die Katze sieht die Szene durch ihre eigene Kamera, und WebGL scheint in diesem Browser aus zu sein.',
+	cardTitle: 'Modellkarte', card: (s) => [
+		['Architektur', 'CNN (Bild + Differenz zum vorigen Bild; 3 Faltungsschichten) → 32 Merkmale → GRU (32 versteckt) → Wahrscheinlichkeit je Becherposition'], ['Parameter', s.params],
+		['Eingabe', 'Nur Pixel: ein 64×32‑Graustufenbild einer festen „Katzenkamera“ über dem Tisch, 30 Bilder pro Sekunde Spielzeit (Bilder, die dem vorigen gleichen, werden übersprungen). Spielzustand, Tausch‑Ereignisse und Becherpositionen bekommt das Modell nie. Sein Gedächtnis wird beim Verstecken zurückgesetzt (ab dann schaut die Katze zu).'],
+		['Trainingsdaten', `${s.episodes} zufällige Runden, ${s.frames} Bilder, in Headless‑Chrome von derselben three.js‑Szene und derselben Katzenkamera gerendert. Tempo, Tauschanzahl und Licht zufällig.`], ['Training', s.train],
+		['Genauigkeit (zurückgehaltene Runden)', `${s.overall} · Raten: ${s.random}`], ['Ehrlichkeitstest', s.blank], ['Größe', s.size],
+		['Grenzen', 'Sehr schnelles Mischen verwirrt sie; das ist echt, siehe Tabelle unten. Funktioniert nur in dieser Szene mit dieser Kamera. Die Gewichte veröffentliche ich vielleicht später auf Hugging Face.']],
+	accTitle: 'Genauigkeit: Tausche × Tempo (Tipp beim letzten Bild)', accSwaps: 'Tausche', accNote: 'Jede Zelle sind zurückgehaltene Testrunden; Anzahl in Klammern. Raten ergibt 33,3 %.',
+	seen: ['Gesehen! {pos}. Seit {n} Bildern dabei, {p} sicher.', 'OK, das Spielzeug ist unter dem Becher {pos}. Ich hab’s im Blick ({p}).', 'Notiert: {pos}. Na los, misch.'],
+	sure: ['{n} Bilder. Immer noch {pos}: {p}.', 'Leicht. {pos}, {p} sicher.', 'Schon {s} Tausche, ich bleib dran: {pos} ({p}).'],
+	unsure: ['Hmm. {pos}, glaube ich ({p}), vielleicht aber {q} ({pq}).', '{n} Bilder… hin‑ und hergerissen zwischen {pos} und {q}: {p} / {pq}.', 'Das war etwas verschwommen. Bester Tipp {pos}, {p}.'],
+	lost: ['Ich glaub, ich hab’s verloren. {pos} {p}, {q} {pq}… praktisch Münzwurf.', 'Zu schnell! Alle drei Becher sehen jetzt gleich aus: höchstens {p}.', 'Ich schwöre bei meinen Pfoten, ich hab hingeschaut. Gerade {pos} mit {p}.'],
+	decide: ['Entscheidung: {pos}. Zuversicht {p} · {n} Bilder · {ms} ms/Bild.', 'Die Pfote geht auf {pos}. {p} sicher ({n} Bilder gesehen).'],
+	won: ['Gefunden! Ich war eh {p} sicher. 🐾', 'Miau! {s} Tausche halten mich nicht auf.', 'Augen auf den Pixeln, Spielzeug in der Pfote.'], wonLucky: ['Gefunden… aber ehrlich, nur {p} sicher. Glück ist auch Können.', 'Getroffen! Fairerweise geraten ({p}).'],
+	lostR: ['Nein, es war {real}! {p} sicher und daneben.', 'Hmpf. Das Spielzeug war {real}. Nächstes Mal.', 'Falsch. Irgendwo in diesen {n} Bildern verloren.'], lostFast: ['Du warst zu schnell! Nach {s} Tauschen mit {p} geraten, kein Glück.', 'Meine Augen kamen nicht mit. Bei dem Tempo irren auch Katzen.'],
+	still: ['Ich warte. Ändert sich das Bild nicht, ändern sich meine Gedanken auch nicht.', 'Los, misch, mir ist langweilig.'],
+	statsTitle: 'Insgesamt', statsLine: (n, c, h, k) => `${n} ${c === 1 ? 'Runde' : 'Runden'} gespielt · Menschen ${h} · Katze ${k}`, statsCat: 'Die Katze führt. Pixel lügen nicht.', statsHuman: 'Die Menschen führen. Die Katze übt schnelleres Blinzeln.', statsTie: 'Gleichstand. Die Katze schwingt den Schwanz.', statsEmpty: 'Noch keine beendeten Runden. Das erste Ergebnis könnte deins sein.', counted: 'Deine Runde wurde gezählt.'
+};
+const es: KediDict = {
+	title: 'Kedi · el juego de los vasos: esconde el juguete, mezcla y que el gato lo encuentre', desc: 'Esconde un juguete bajo uno de tres vasos y mezcla todo lo que quieras; un gato hecho de una red neuronal diminuta adivina dónde está solo con los píxeles que ve su propia cámara. Funciona en el navegador, gratis.',
+	pitch: '27K parámetros · adivina solo con píxeles · en tu navegador', pos: ['izquierdo', 'central', 'derecho'], cupOf: (p) => `el vaso ${p}`,
+	hide: 'Haz clic en un vaso para esconder el juguete', hiding: 'El gato está mirando…', shuffle: (s) => (s ? `${s} cambios · mezcla todo lo que quieras` : 'Mezcla: haz clic en dos vasos o arrastra uno sobre otro'), ask: 'Gato, ¿dónde está?', asking: 'El gato está pensando…', queued: (n) => `${n} cambios en cola`,
+	catWin: '¡El gato lo encontró! 🐾', humanWin: '¡El gato se equivocó! 🎉', newRound: 'Nueva ronda', shuffleN: (n) => `Mezclar al azar ×${n}`, speed: 'Velocidad', speeds: ['lenta', 'media', 'rápida', 'muy rápida', 'relámpago'], times: 'veces',
+	belief: 'Lo que cree el gato', frames: (n) => `${n} fotogramas`, perFrame: (ms) => `${ms} ms/fotograma`, swapsDone: (s) => `${s} cambios`,
+	hint: 'Clic: esconder · clic en dos vasos seguidos o arrastrar: intercambiar · M: sonido', engineLabel: 'Motor', engineTs: 'TypeScript', noWebgl: 'Este juego necesita WebGL: el gato ve la escena con su propia cámara, y WebGL parece desactivado en este navegador.',
+	cardTitle: 'Ficha del modelo', card: (s) => [
+		['Arquitectura', 'CNN (fotograma + diferencia con el anterior; 3 capas convolucionales) → 32 rasgos → GRU (32 ocultas) → probabilidad por posición de vaso'], ['Parámetros', s.params],
+		['Entrada', 'Solo píxeles: un fotograma en gris de 64×32 de una “cámara del gato” fija sobre la mesa, 30 fotogramas por segundo de tiempo de juego (se omiten los idénticos al anterior). El estado del juego, los cambios y las posiciones de los vasos nunca se le dan al modelo. Su memoria se reinicia al esconder el juguete (ahí empieza a mirar).'],
+		['Datos de entrenamiento', `${s.episodes} rondas al azar, ${s.frames} fotogramas, renderizados en Chrome headless con la misma escena three.js y la misma cámara del gato. Velocidad, número de cambios y luz al azar.`], ['Entrenamiento', s.train],
+		['Precisión (rondas reservadas)', `${s.overall} · al azar: ${s.random}`], ['Prueba de honestidad', s.blank], ['Tamaño', s.size],
+		['Limitaciones', 'Las mezclas muy rápidas lo confunden; es real, mira la tabla. Solo funciona en esta escena con esta cámara. Puede que publique los pesos en Hugging Face más adelante.']],
+	accTitle: 'Precisión: cambios × velocidad (predicción en el último fotograma)', accSwaps: 'cambios', accNote: 'Cada celda son rondas de prueba reservadas; número de rondas entre paréntesis. Al azar: 33,3 %.',
+	seen: ['¡Visto! {pos}. Llevo {n} fotogramas mirando, {p} seguro.', 'Vale, el juguete está bajo {pos}. No le quito ojo ({p}).', 'Apuntado: {pos}. Adelante, mezcla.'],
+	sure: ['{n} fotogramas. Sigo con {pos}: {p}.', 'Fácil. {pos}, con {p}.', 'Van {s} cambios y sigo la pista: {pos} ({p}).'],
+	unsure: ['Mmm. {pos}, creo ({p}), aunque quizá {q} ({pq}).', '{n} fotogramas… dudo entre {pos} y {q}: {p} / {pq}.', 'Se me ha nublado un poco. Mi mejor apuesta: {pos}, {p}.'],
+	lost: ['Creo que lo he perdido. {pos} {p}, {q} {pq}… como tirar una moneda.', '¡Demasiado rápido! Los tres vasos me parecen iguales: como mucho {p}.', 'Lo juro por mis patas, estaba mirando. Ahora mismo {pos} con {p}.'],
+	decide: ['Decisión: {pos}. Confianza {p} · {n} fotogramas · {ms} ms/fotograma.', 'Pongo la pata en {pos}. {p} seguro ({n} fotogramas vistos).'],
+	won: ['¡Encontrado! Ya estaba {p} seguro. 🐾', '¡Miau! {s} cambios no me paran.', 'Ojos en los píxeles, juguete en la pata.'], wonLucky: ['Encontrado… pero, sinceramente, solo estaba {p} seguro. La suerte también cuenta.', '¡Acerté! La verdad, fue a ojo ({p}).'],
+	lostR: ['¡No puede ser, era {real}! Estaba {p} seguro y fallé.', 'Mmpf. El juguete estaba bajo {real}. La próxima.', 'Fallé. Lo perdí en algún punto de esos {n} fotogramas.'], lostFast: ['¡Fuiste demasiado rápido! Tras {s} cambios aposté con {p}, sin suerte.', 'Mis ojos no llegaron. A esa velocidad hasta los gatos fallan.'],
+	still: ['Espero. Si el fotograma no cambia, mis ideas tampoco.', 'Venga, mezcla, que me aburro.'],
+	statsTitle: 'Histórico', statsLine: (n, c, h, k) => `${n} ${c === 1 ? 'ronda jugada' : 'rondas jugadas'} · Humanos ${h} · Gato ${k}`, statsCat: 'Gana el gato. Los píxeles no mienten.', statsHuman: 'Ganan los humanos. El gato practica parpadear más rápido.', statsTie: 'Empate. El gato mueve la cola.', statsEmpty: 'Aún no hay rondas terminadas. El primer resultado puede ser tuyo.', counted: 'Tu ronda se ha contado.'
+};
+const fr: KediDict = {
+	title: 'Kedi · le jeu des gobelets : cache le jouet, mélange, le chat le retrouve', desc: 'Cache un jouet sous l’un des trois gobelets et mélange autant que tu veux ; un chat fait d’un minuscule réseau de neurones devine où il est uniquement à partir des pixels de sa propre caméra. Dans ton navigateur, gratuit.',
+	pitch: '27K paramètres · devine à partir des pixels seulement · dans le navigateur', pos: ['de gauche', 'du milieu', 'de droite'], cupOf: (p) => `le gobelet ${p}`,
+	hide: 'Clique sur un gobelet pour y cacher le jouet', hiding: 'Le chat regarde…', shuffle: (s) => (s ? `${s} échanges · mélange autant que tu veux` : 'Mélange : clique sur deux gobelets ou fais‑en glisser un sur l’autre'), ask: 'Chat, il est où ?', asking: 'Le chat réfléchit…', queued: (n) => `${n} échanges en attente`,
+	catWin: 'Le chat l’a trouvé ! 🐾', humanWin: 'Le chat s’est trompé ! 🎉', newRound: 'Nouvelle manche', shuffleN: (n) => `Mélange aléatoire ×${n}`, speed: 'Vitesse', speeds: ['lente', 'moyenne', 'rapide', 'très rapide', 'éclair'], times: 'fois',
+	belief: 'Ce que pense le chat', frames: (n) => `${n} images`, perFrame: (ms) => `${ms} ms/image`, swapsDone: (s) => `${s} échanges`,
+	hint: 'Clic : cacher · clic sur deux gobelets ou glisser : échanger · M : son', engineLabel: 'Moteur', engineTs: 'TypeScript', noWebgl: 'Ce jeu a besoin de WebGL : le chat voit la scène par sa propre caméra, et WebGL semble désactivé dans ce navigateur.',
+	cardTitle: 'Fiche du modèle', card: (s) => [
+		['Architecture', 'CNN (image + différence avec la précédente ; 3 couches de convolution) → 32 caractéristiques → GRU (32 cachées) → probabilité par position de gobelet'], ['Paramètres', s.params],
+		['Entrée', 'Uniquement des pixels : une image 64×32 en niveaux de gris d’une « caméra du chat » fixe au‑dessus de la table, 30 images par seconde de temps de jeu (les images identiques à la précédente sont ignorées). L’état du jeu, les échanges et les positions des gobelets ne sont jamais donnés au modèle. Sa mémoire est remise à zéro quand tu caches le jouet (c’est là que le chat commence à regarder).'],
+		['Données d’entraînement', `${s.episodes} manches aléatoires, ${s.frames} images, rendues dans Chrome headless par la même scène three.js et la même caméra du chat. Vitesse, nombre d’échanges et lumière aléatoires.`], ['Entraînement', s.train],
+		['Précision (manches réservées)', `${s.overall} · au hasard : ${s.random}`], ['Test d’honnêteté', s.blank], ['Taille', s.size],
+		['Limites', 'Les mélanges très rapides le perdent ; c’est réel, voir le tableau. Ne marche que dans cette scène avec cette caméra. Je publierai peut‑être les poids sur Hugging Face plus tard.']],
+	accTitle: 'Précision : échanges × vitesse (prédiction à la dernière image)', accSwaps: 'échanges', accNote: 'Chaque case = manches de test réservées ; nombre de manches entre parenthèses. Au hasard : 33,3 %.',
+	seen: ['Vu ! {pos}. Je regarde depuis {n} images, sûr à {p}.', 'OK, le jouet est sous {pos}. Je l’ai à l’œil ({p}).', 'Noté : {pos}. Vas‑y, mélange.'],
+	sure: ['{n} images. Toujours {pos} : {p}.', 'Facile. {pos}, à {p}.', 'Déjà {s} échanges, je suis toujours : {pos} ({p}).'],
+	unsure: ['Hmm. {pos}, je crois ({p}), mais peut‑être {q} ({pq}).', '{n} images… j’hésite entre {pos} et {q} : {p} / {pq}.', 'C’était un peu flou. Meilleure idée : {pos}, {p}.'],
+	lost: ['Je crois que je l’ai perdu. {pos} {p}, {q} {pq}… pile ou face.', 'Trop rapide ! Les trois gobelets se ressemblent : au mieux {p}.', 'Je le jure sur mes pattes, je regardais. Là, {pos} à {p}.'],
+	decide: ['Décision : {pos}. Confiance {p} · {n} images · {ms} ms/image.', 'Je pose la patte sur {pos}. Sûr à {p} ({n} images vues).'],
+	won: ['Trouvé ! J’étais déjà sûr à {p}. 🐾', 'Miaou ! {s} échanges ne m’arrêtent pas.', 'Les yeux sur les pixels, le jouet dans la patte.'], wonLucky: ['Trouvé… mais franchement, je n’étais sûr qu’à {p}. La chance, ça compte.', 'Gagné ! Pour être honnête, c’était au pif ({p}).'],
+	lostR: ['Non, c’était {real} ! Sûr à {p}, et raté.', 'Pff. Le jouet était sous {real}. La prochaine fois.', 'Raté. Je l’ai perdu quelque part dans ces {n} images.'], lostFast: ['Tu étais trop rapide ! Après {s} échanges j’ai parié à {p}, raté.', 'Mes yeux n’ont pas suivi. À cette vitesse, même les chats se trompent.'],
+	still: ['J’attends. Si l’image ne change pas, mes idées non plus.', 'Allez, mélange, je m’ennuie.'],
+	statsTitle: 'Depuis le début', statsLine: (n, c, h, k) => `${n} ${c === 1 ? 'manche jouée' : 'manches jouées'} · Humains ${h} · Chat ${k}`, statsCat: 'Le chat mène. Les pixels ne mentent pas.', statsHuman: 'Les humains mènent. Le chat s’entraîne à cligner plus vite.', statsTie: 'Égalité. Le chat remue la queue.', statsEmpty: 'Aucune manche terminée. Le premier résultat sera peut‑être le tien.', counted: 'Ta manche a été comptée.'
+};
+export const KEDI: Record<Lang, KediDict> = { tr, en, de, es, fr };

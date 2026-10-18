@@ -7,20 +7,24 @@
 	import Seo from './Seo.svelte';
 	import { STATS } from '#lib/tavla-stats';
 	import { STATS as OKS } from '#lib/okey-stats';
+	import { KEDI_STATS as KS } from '#lib/kedi-stats';
+	import { PARAMS as KEDI_PARAMS } from '#lib/kedi-weights';
 
 	let { data }: { data: { lang: Lang | null } } = $props();
 	const initialLang = (() => data.lang ?? 'en')();
 	let lang = $state<Lang>(initialLang);
 	const h = $derived(HUB[lang]);
-	type Item = { key: 'coin' | 'dice' | 'tavla' | 'okey' | 'rps' | 'ball'; params: number; card: HubCard; href?: string };
+	type Item = { key: 'coin' | 'dice' | 'tavla' | 'okey' | 'kedi' | 'rps' | 'ball'; params: number; card: HubCard; href?: string };
 	const pc = $derived(new Intl.NumberFormat(lang, { style: 'percent', maximumFractionDigits: 1 }));
 	const tavlaCard = $derived<HubCard>({ ...h.tavla, stats: h.tavla.stats.map(([k, v]) => [k, v.replace('{r}', pc.format(STATS.vsRandom.w / Math.max(STATS.vsRandom.n, 1))).replace('{h}', pc.format(STATS.vsHeur.w / Math.max(STATS.vsHeur.n, 1))).replace('{kb}', `${(STATS.onnxBytes / 1024).toLocaleString(lang, { maximumFractionDigits: 1 })} KB`)] as [string, string]) });
 	const okeyCard = $derived<HubCard>({ ...h.okey, stats: h.okey.stats.map(([k, v]) => [k, v.replace('{r}', pc.format(OKS.vsRandom.w / Math.max(OKS.vsRandom.n, 1))).replace('{g}', pc.format(OKS.vsGreedy.w / Math.max(OKS.vsGreedy.n, 1))).replace('{kb}', `${(OKS.onnxBytes / 1024).toLocaleString(lang, { maximumFractionDigits: 1 })} KB`)] as [string, string]) });
+	const kediCard = $derived<HubCard>({ ...h.kedi, stats: h.kedi.stats.map(([k, v]) => [k, v.replace('{a}', KS.overall.n ? pc.format(KS.overall.w / KS.overall.n) : '—').replace('{r}', pc.format(1 / 3)).replace('{kb}', `${Math.round(KS.onnxBytes / 1024).toLocaleString(lang)} KB`)] as [string, string]) });
 	const items = $derived<Item[]>([
 		{ key: 'coin', params: 1, card: h.coin, href: pathFor(lang, 'coin') },
 		{ key: 'dice', params: 6, card: h.dice, href: pathFor(lang, 'dice') },
 		{ key: 'tavla', params: STATS.params, card: tavlaCard, href: pathFor(lang, 'tavla') },
 		{ key: 'okey', params: OKS.params, card: okeyCard, href: pathFor(lang, 'okey') },
+		{ key: 'kedi', params: KEDI_PARAMS, card: kediCard, href: pathFor(lang, 'kedi') },
 		{ key: 'rps', params: 3, card: h.rps },
 		{ key: 'ball', params: 20, card: h.ball }
 	]);
@@ -61,6 +65,7 @@
 					{:else if it.key === 'dice'}<div class="cube">{#each [1, 2, 3, 4, 5, 6] as f (f)}<div class="f f{f}">{#each Array(f) as _, i (i)}<i></i>{/each}</div>{/each}</div>
 					{:else if it.key === 'tavla'}<div class="tavla"><i></i><i></i><i></i><i></i><b></b><b></b></div>
 					{:else if it.key === 'okey'}<div class="okeyi"><i class="r">3</i><i class="y">4</i><i class="b">5</i><i class="k">★</i></div>
+					{:else if it.key === 'kedi'}<div class="cups"><span class="cat">🐱</span><i></i><i class="up"><b></b></i><i></i></div>
 					{:else if it.key === 'rps'}<div class="hands"><span>✊</span><span>✋</span><span>✌️</span></div>
 					{:else}<div class="ball"><span>8</span></div>{/if}
 				</div>
@@ -150,5 +155,13 @@
 	.ball { width: 74px; height: 74px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #555, #111 55%, #000); box-shadow: 0 10px 24px #000a; display: grid; place-items: center; animation: shake 2.8s ease-in-out infinite; }
 	.ball span { width: 30px; height: 30px; border-radius: 50%; background: #f3efe6; color: #111; display: grid; place-items: center; font: 900 18px Georgia, serif; }
 	@keyframes shake { 0%, 70%, 100% { transform: rotate(0); } 75% { transform: rotate(-12deg); } 85% { transform: rotate(10deg); } 92% { transform: rotate(-5deg); } }
-	@media (prefers-reduced-motion: reduce) { .coin, .cube, .hands span, .ball, .okeyi i, .tavla b { animation: none; } .hands span:first-child { opacity: 1; } }
+	.cups { position: relative; width: 84px; height: 56px; display: flex; gap: 5px; align-items: flex-end; justify-content: center; }
+	.cups .cat { position: absolute; top: -6px; left: 50%; transform: translateX(-50%); font-size: 22px; }
+	.cups i { position: relative; width: 22px; height: 22px; background: linear-gradient(180deg, #d0583a, #9a3520); clip-path: polygon(18% 0, 82% 0, 100% 100%, 0 100%); border-radius: 3px; }
+	.cups i.up { animation: cupup 2.6s ease-in-out infinite; clip-path: none; background: none; }
+	.cups i.up::before { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, #d0583a, #9a3520); clip-path: polygon(18% 0, 82% 0, 100% 100%, 0 100%); }
+	.cups i.up b { position: absolute; left: 6px; bottom: -14px; width: 10px; height: 10px; border-radius: 50%; background: #ffc93a; animation: cupball 2.6s ease-in-out infinite; }
+	@keyframes cupup { 0%, 55%, 100% { transform: translateY(0); } 70%, 85% { transform: translateY(-12px); } }
+	@keyframes cupball { 0%, 55%, 100% { transform: translateY(0); opacity: 0; } 70%, 85% { transform: translateY(12px); opacity: 1; } }
+	@media (prefers-reduced-motion: reduce) { .cups i.up, .cups i.up b { animation: none; } .coin, .cube, .hands span, .ball, .okeyi i, .tavla b { animation: none; } .hands span:first-child { opacity: 1; } }
 </style>

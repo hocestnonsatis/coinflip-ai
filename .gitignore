@@ -16,3 +16,6 @@ train/__pycache__/
 train-okey/ck/
 train-okey/logs/
 train-okey/__pycache__/
+train-cat/data/
+train-cat/ckpt/
+train-cat/data-grid/
