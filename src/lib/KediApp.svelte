@@ -371,7 +371,7 @@
 	.acc-t { margin: 10px 0 4px; font-weight: 700; font-size: 12px; }
 	.acc { width: 100%; border-collapse: collapse; font-size: 10px; table-layout: fixed; } .acc th small { font-size: 9px; }
 	.acc th, .acc td { padding: 2px 1px; overflow: hidden; text-overflow: ellipsis; text-align: center; border: 1px solid #ffffff14; }
-	.acc td { background: color-mix(in srgb, #36e27e calc(var(--a) * 55%), transparent); } .acc td small { opacity: 0.55; }
+	.acc td { background: color-mix(in srgb, #36e27e calc(var(--a) * 55%), transparent); }
 	.acc-n { font-size: 10px; opacity: 0.6; margin: 4px 0 0; }
 	@media (max-aspect-ratio: 1/1), (max-width: 760px) {
 		.panel { left: 0; right: 0; top: auto; bottom: 0; width: auto; height: 40dvh; max-height: none; border-radius: 18px 18px 0 0; padding: 8px 12px max(8px, env(safe-area-inset-bottom)); }

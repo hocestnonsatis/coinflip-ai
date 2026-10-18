@@ -12,6 +12,14 @@ const drag = async (b, a, c) => { const M = (type, x, y, extra = {}) => b.send('
 	for (let k = 1; k <= 6; k++) await M('mouseMoved', a.x + ((c.x - a.x) * k) / 6, a.y + ((c.y - a.y) * k) / 6, { buttons: 1 });
 	await M('mouseReleased', c.x, c.y, { buttons: 0, clickCount: 1 }); };
 const ui = (b) => b.ev('window.__kediUi()');
+// click the cup at a slot to hide the toy; retry if the click landed before the new round's cups were back in place
+async function hideAt(b, slot) {
+	for (let k = 0; k < 4; k++) {
+		await sleep(400); const c = await b.ev(`window.__kedi.s.screenOfSlot(${slot})`); await b.click(c.x, c.y);
+		if (await b.waitFor('window.__kediUi().phase !== "hide"', 4000) && (await b.waitFor('window.__kediUi().phase === "shuffle"', 60000))) return;
+	}
+	throw new Error('never reached shuffle');
+}
 const PAIRS = [[0, 1], [1, 2], [0, 2], [2, 1], [1, 0], [2, 0]];
 async function setShuffle(b, n, speed) {
 	await b.ev(`(() => { const r = document.querySelector('.speed input'); const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(r, '${speed}'); r.dispatchEvent(new Event('input', { bubbles: true })); })()`);
@@ -27,8 +35,7 @@ async function finish(b) {
 async function manual(b, { slot, k, mode, gapMs, n = 0, speed = 0.5, seed = 1 }) {
 	if ((await ui(b)).phase === 'over') await b.ev('document.querySelector("button.primary").click()');
 	await b.waitFor('window.__kediUi().phase === "hide"', 30000);
-	const c = await b.ev(`window.__kedi.s.screenOfSlot(${slot})`); await b.click(c.x, c.y);
-	if (!(await b.waitFor('window.__kediUi().phase === "shuffle"', 60000))) throw new Error('never reached shuffle');
+	await hideAt(b, slot);
 	const S = await Promise.all([0, 1, 2].map((i) => b.ev(`window.__kedi.s.screenOfSlot(${i})`)));
 	let r = seed, sent = 0;
 	for (let i = 0; i < k; i++) {
@@ -48,8 +55,7 @@ async function round(b, { slot = 1, hand = true, n = 0, speed = null, feed = 'no
 	if ((await ui(b)).phase === 'over') await b.ev('document.querySelector("button.primary").click()');
 	await b.waitFor('window.__kediUi().phase === "hide"', 30000);
 	await b.ev(`window.__kediFeed(${JSON.stringify(feed)})`);
-	const c = await b.ev(`window.__kedi.s.screenOfSlot(${slot})`); await b.click(c.x, c.y);
-	if (!(await b.waitFor('window.__kediUi().phase === "shuffle"', 60000))) throw new Error('never reached shuffle');
+	await hideAt(b, slot);
 	if (hand) { // click two cups (by slot) = one hand swap
 		const a = await b.ev('window.__kedi.s.screenOfSlot(0)'), d = await b.ev('window.__kedi.s.screenOfSlot(2)');
 		await b.click(a.x, a.y); await sleep(150); await b.click(d.x, d.y); await sleep(200);
